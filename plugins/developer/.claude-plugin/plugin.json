@@ -1,0 +1,13 @@
+{
+  "name": "vmkteam-developer",
+  "version": "1.0.0",
+  "description": "vmkteam SDLC developer profile — 33 skills for Go API services: onboarding, task solving, code review, monitoring, incident investigation",
+  "author": {
+    "name": "vmkteam",
+    "url": "https://github.com/vmkteam"
+  },
+  "homepage": "https://vmkteam.dev",
+  "repository": "https://github.com/vmkteam/claude-plugins",
+  "license": "MIT",
+  "keywords": ["go", "api", "sdlc", "postgresql", "zenrpc", "vmkteam", "code-review", "monitoring", "youtrack"]
+}
