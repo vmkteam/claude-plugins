@@ -21,20 +21,21 @@ description: "Solve — решение задачи из YouTrack. Полный 
 
 ```
 docs/llm/tasks/PLF-819/
-├── research.md      — анализ задачи, контекст, вопросы (шаг 2)
-├── spec.md          — спецификация плана реализации (шаг 3)
-├── review-initial.md      — первое ревью (шаг 9)
-└── review-final.md  — финальное ревью перед коммитом (шаг 9, повторное)
+├── research.md          — анализ задачи, контекст, вопросы (шаг 2)
+├── spec.md              — спецификация плана реализации (шаг 3)
+├── review-initial.md    — первое ревью (шаг 9)
+└── review-final.md      — финальное ревью перед коммитом (шаг 9, повторное)
 ```
 
 ## Flow
 
 ```
-FETCH → ANALYZE → research.md → ⏸ HITL
-                                     ↓ утвердили
-                                PLAN → spec.md → ⏸ HITL
-                                                     ↓ утвердили
-                                                TEST → IMPLEMENT → SIMPLIFY → FMT+LINT → VERIFY → REVIEW → ⏸ HITL → COMMIT → ⏸ HITL → YOUTRACK → ⏸ HITL
+FETCH → ANALYZE → research.md → ⏸
+  → PLAN → spec.md → ⏸
+  → TEST → IMPLEMENT → SIMPLIFY → FMT+LINT → VERIFY
+  → REVIEW → ⏸
+  → COMMIT → ⏸
+  → YOUTRACK → ⏸
 ```
 
 **Важно:**
@@ -62,7 +63,6 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues/{TASK_ID}?fields=idReadable,su
 
 **Аттачи:**
 ```bash
-# Получить список аттачей
 pcurl @{yt_profile} 'https://{yt_host}/api/issues/{TASK_ID}/attachments?fields=id,name,url,mimeType,size,created,author(login)' -s
 ```
 
@@ -117,7 +117,6 @@ pcurl @{yt_profile} 'https://{yt_host}{url}' -s -o docs/llm/tasks/{TASK_ID}/{fil
 
 Лёгкий (код + Sentry):
 ```bash
-# Sentry: поиск по ключевым словам из описания бага
 pcurl @{sentry_profile} 'https://{sentry_host}/api/0/organizations/{org}/issues/?query=is:unresolved+{keywords}&sort=freq&statsPeriod=7d&limit=5' -s
 ```
 
@@ -128,53 +127,11 @@ pcurl @{sentry_profile} 'https://{sentry_host}/api/0/organizations/{org}/issues/
 - API — воспроизвести запрос на dev, проверить на prod
 - Сравнить задеплоенную версию с кодом (Sentry release commit)
 
-**Артефакт:** Сохранить `docs/llm/tasks/{TASK_ID}/research.md`:
-
-```markdown
-# {TASK_ID} — Research
-
-## Задача
-- **Summary:** {summary}
-- **Тип:** {Bug/Task/Feature}
-- **Приоритет:** {priority}
-- **Описание:** {description}
-
-## Аттачи
-- {filename} ({mimeType}, {size}) — {что на картинке / краткое содержание PDF}
-- {filename} — не анализировался ({mimeType})
-
-## Связанные задачи
-- **Parent:** {parent_id} — {summary}
-- **Subtasks:** {list}
-- **Linked:** {list с типом связи}
-
-## История (git)
-- Предыдущие коммиты по теме: {список}
-- Последние изменения в затронутых файлах: {кто, когда, что}
-
-## Анализ
-- **Понимание:** {1-2 предложения}
-- **Scope изменений:** {краткий список}
-
-## Root Cause (если баг)
-- **Уровень расследования:** {лёгкий/полный}
-- **Причина:** {описание}
-- **Sentry:** {issue_id, stacktrace, count events}
-- **Prometheus:** {error rate, latency — если полный}
-- **Loki:** {релевантные логи — если полный}
-- **Воспроизводимость:** {dev/prod, шаги}
-
-## Затронутые файлы
-- {file:line} — {почему}
-
-## Вопросы
-- {вопрос 1}
-
-## Риски
-- {риск 1}
-```
+**Артефакт:** Прочитать шаблон из `skills/solve/research-template.md`, заполнить и сохранить как `docs/llm/tasks/{TASK_ID}/research.md`.
 
 ### ⏸ HITL: Утверждение research
+
+**Чеклист артефактов:** убедиться что `docs/llm/tasks/{TASK_ID}/research.md` записан на диск.
 
 Показать пользователю research.md. **Не переходить к PLAN пока research не утверждён.**
 
@@ -183,101 +140,25 @@ pcurl @{sentry_profile} 'https://{sentry_host}/api/0/organizations/{org}/issues/
 - **Уточнить** — обновить research.md, показать снова
 - **Отклонить** — пересмотреть подход
 
-### 3. PLAN — план решения
+### 3. PLAN — план решения (plan mode)
 
-**Артефакт:** Сохранить `docs/llm/tasks/{TASK_ID}/spec.md`:
+Оставаться в plan mode. Продумать:
+- Какие слои затронуты (db → domain → rpc) и в каком порядке менять
+- Поток данных: откуда приходит, как трансформируется, куда уходит
+- Какие существующие паттерны в проекте переиспользовать (найти аналоги через grep)
+- Нужны ли изменения схемы БД → /pgd или /pgmdd
+- Нужны ли поиски/фильтрация → /mfd SearchObject
+- Нужны ли новые конвертеры → /colgen
+- Есть ли зависимости между шагами (миграция до модели, модель до RPC)
 
-```markdown
-# {TASK_ID} — Спецификация
+Написать **реальные скелеты кода** из текущей задачи — сигнатуры функций, структуры, конвертеры. Не абстрактные примеры.
 
-## Summary
-{1-2 предложения что делаем}
-
-## Шаги реализации
-1. [ ] {конкретное действие — атомарное, проверяемое}
-2. [ ] {следующее действие}
-3. [ ] ...
-
-Пример для задачи с изменением схемы БД (стадия Dev+):
-1. [ ] Изменить схему в `docs/{name}.pgd` (/pgd)
-2. [ ] `pgdesigner diff old.pgd new.pgd` → миграция в `docs/patches/`
-3. [ ] `pgdesigner generate` → обновить `docs/{name}.sql` (всегда актуальный)
-4. [ ] `pgmigrator run` → `make mfd-xml` → `make mfd-model` → `make mfd-repo NS={ns}`
-5. [ ] Добавить бизнес-логику в `pkg/{domain}/{file}.go`
-6. [ ] Добавить RPC-метод в `pkg/rpc/{file}.go` с zenrpc-аннотациями
-7. [ ] `make generate`
-8. [ ] Написать тесты
-
-Пример для бага:
-1. [ ] Исправить `pkg/rpc/order.go:142` — nil check перед обращением к pointer
-2. [ ] Добавить тест на этот edge case
-3. [ ] `make generate` (если менялись аннотации)
-
-## Миграции (если есть SQL-изменения)
-- Стадия: {Идея — нет миграций, правим sql напрямую / Dev+ — миграция через pgdesigner diff}
-- [ ] Схема `docs/{name}.pgd` обновлена
-- [ ] `docs/{name}.sql` обновлён (pgdesigner generate)
-- [ ] Миграция в `docs/patches/` (pgdesigner diff или вручную)
-- [ ] Нет блокирующих ALTER на больших таблицах
-- [ ] CREATE INDEX CONCURRENTLY → `-NONTR.sql`
-- План отката: {описание или "не требуется"}
-
-## API compatibility (если меняются RPC-методы)
-- [ ] Нет breaking changes для существующих клиентов
-- [ ] Новые параметры опциональны или с default
-- Breaking changes: {описание или "нет"}
-
-## Примеры кода (скелеты)
-
-Показать ключевые фрагменты кода до реализации — сигнатуры, модели, конвертеры. Пользователь проверяет архитектуру до написания кода.
-
-```go
-// Модель (если новый тип)
-type Order struct {
-    ID     int    `json:"id"`
-    Title  string `json:"title" validate:"required,max=255"`
-    UserID int    `json:"userId"`
-}
-
-// Конвертер (colgen MapP)
-func NewOrder(in *db.Order) *Order { ... }
-//colgen:Order:MapP(db)
-
-// RPC-метод (сигнатура + zenrpc-аннотации)
-// Create creates new order.
-//
-//zenrpc:order Order
-//zenrpc:return Order
-//zenrpc:500 Internal Error
-func (s OrderService) Create(ctx context.Context, order Order) (*Order, error) {
-```
-
-Абстрактный пример — заменить на реальный код задачи.
-
-## Pre-review checklist (чтобы не огребать на /go-review)
-- [ ] Конвертеры между слоями через colgen (MapP/Map для каждого нового типа)
-- [ ] `make generate` чистый (нет неожиданных diff в *_zenrpc.go, *_colgen.go)
-- [ ] Authz: проверка прав внутри методов, не только middleware (IDOR)
-- [ ] Errors: `NewStringError` для клиента, `newInternalError` для Sentry
-- [ ] Логирование: достаточно для диагностики нового функционала
-- [ ] Тесты: happy path + основные error cases
-
-## Стиль кода
-- Пиши как Dave Cheney: ясные зависимости, никакой магии, каждая функция понятна без контекста
-- Пиши как Rob Pike: три строки простого кода лучше одной умной, никаких абстракций ради абстракций
-- Не добавляй то, что не просили. Не рефактори соседний код. Не добавляй "на будущее"
-
-## Критерии готовности
-- [ ] Тесты проходят
-- [ ] make lint чисто
-- [ ] Pre-review checklist пройден
-- [ ] /go-review без блокеров
-- [ ] Схема и sql актуальны (если менялась БД)
-- [ ] Миграция безопасна (если стадия Dev+)
-- [ ] API совместимость сохранена (если менялись методы)
-```
+**СОХРАНИТЬ:** прочитать шаблон из `skills/solve/spec-template.md`, заполнить и записать как `docs/llm/tasks/{TASK_ID}/spec.md` через Write tool. Не откладывать.
+Секции "Миграции" и "API compatibility" включать только если применимо к задаче.
 
 ### ⏸ HITL: Утверждение spec
+
+**Чеклист артефактов:** убедиться что `docs/llm/tasks/{TASK_ID}/spec.md` записан на диск.
 
 Показать пользователю spec.md (включая примеры кода). **Не переходить к TEST/IMPLEMENT пока spec не утверждён.**
 
@@ -304,11 +185,17 @@ make test  # убедиться что тесты падают по правил
 - Писать код пошагово, следуя плану
 - Тесты из шага 4 должны **проходить** после реализации
 
+**Работа с БД:** при изменениях схемы, моделей или поисков использовать скиллы /pgd (или /pgmdd) и /mfd. Стандартные поиски и фильтрация всегда добавляются через /mfd (SearchObject).
+
 **Правило генерации:** если изменены структуры или методы в `pkg/rpc/`, `pkg/vt/`, `pkg/intrpc/` или любом пакете с `//go:generate` — обязательно:
 ```bash
 make generate  # zenrpc + colgen
 ```
 Закоммитить обновлённые `*_zenrpc.go` и `*_colgen.go` вместе с изменениями. Без этого SMD/OpenRPC schema будет устаревшей.
+
+**Актуализация артефактов:** после реализации, пока контекст свежий — обновить артефакты:
+- Если реализация отклонилась от spec.md (изменился план, добавились/убрались шаги, поменялись сигнатуры) — обновить spec.md, отметив выполненные шаги `[x]` и добавив фактические отличия.
+- Если изменилось понимание задачи, scope или root cause — обновить research.md.
 
 ### 6. SIMPLIFY — упрощение кода
 
@@ -364,6 +251,8 @@ make test
 
 ### 9. REVIEW — code review
 
+**Перечитать этот SKILL.md через Read tool** если прошло много шагов — контекст мог быть сжат.
+
 Вызвать `/go-review` на свои изменения — 6 ревьюеров:
 1. Common — соответствие задаче
 2. Architecture (Dave Cheney) — бизнес-логика
@@ -372,15 +261,28 @@ make test
 5. Tests (Mitchell Hashimoto) — тесты
 6. Operability (Peter Bourgon) — операционная готовность
 
-**Артефакт:** Сохранить результат ревью:
+**СРАЗУ после получения результатов ревью** сохранить в файл через Write tool:
 - Первое ревью → `docs/llm/tasks/{TASK_ID}/review-initial.md`
-- После исправлений (если были) → `docs/llm/tasks/{TASK_ID}/review-final.md`
+- После исправлений → `docs/llm/tasks/{TASK_ID}/review-final.md`
 
 ### ⏸ HITL: Оценка ревью
+
+**Чеклист артефактов:** убедиться что `docs/llm/tasks/{TASK_ID}/review-initial.md` (или `review-final.md`) записан на диск.
 
 Показать результаты ревью пользователю. Пользователь решает:
 - **Approve** — идём к коммиту
 - **Fix** — вернуться к IMPLEMENT, исправить замечания (→ повторить SIMPLIFY → FMT+LINT → VERIFY → REVIEW)
+
+### Pre-commit checklist — артефакты
+
+**Перечитать этот SKILL.md через Read tool** если контекст мог быть сжат.
+
+Проверить что ВСЕ артефакты существуют на диске:
+- [ ] `docs/llm/tasks/{TASK_ID}/research.md`
+- [ ] `docs/llm/tasks/{TASK_ID}/spec.md`
+- [ ] `docs/llm/tasks/{TASK_ID}/review-initial.md` (или `review-final.md`)
+
+Если файл отсутствует — создать его СЕЙЧАС через Write tool, восстановив содержимое из контекста.
 
 ### 10. COMMIT — коммит в ветку задачи
 
