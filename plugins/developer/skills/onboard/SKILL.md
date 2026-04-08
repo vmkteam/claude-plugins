@@ -82,6 +82,9 @@ description: "Onboard — интерактивный онбординг в пр�
 16. **API endpoints**: URL dev/prod, pcurl-профили, rpc_endpoint?
 17. **Nomad job**: имя job?
 18. **Специфика**: особые правила, code style?
+19. **Артефакты /solve** (`artifacts`): коммитить `docs/llm/tasks/` вместе с MR или публиковать как коммент со спойлерами? Варианты:
+    - `commit` — артефакты коммитятся в ветку (по умолчанию)
+    - `comment` — артефакты публикуются как коммент в MR (GitLab) или задачу (YouTrack)
 
 ### Шаг 3b. Краткий опрос (infra-группа уже есть)
 
@@ -332,6 +335,9 @@ infra: ~/.claude/memory/infra-{group}.md
 - profile: @{api_dev_profile}
 - host: {api_dev_host}
 - rpc_endpoint: /rpc/
+
+## Solve settings
+- artifacts: {commit/comment} — куда складывать артефакты /solve (docs/llm/tasks/)
 
 ## Makefile-команды
 {список ключевых make targets с кратким описанием}

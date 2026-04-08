@@ -6,7 +6,7 @@ Marketplace плагинов [Claude Code](https://docs.anthropic.com/en/docs/cl
 
 | Плагин | Описание |
 |--------|----------|
-| **[developer](#developer)** | Полный SDLC-профиль для Go API-сервисов — 33 скилла |
+| **[developer](#developer)** | Полный SDLC-профиль для Go API-сервисов — 34 скилла |
 
 ---
 
@@ -73,7 +73,7 @@ claude --plugin-dir ./plugins/developer
 /investigate API тормозит последние 30 минут
 ```
 
-## Скиллы (33)
+## Скиллы (34)
 
 ### Workflow
 
@@ -86,6 +86,7 @@ claude --plugin-dir ./plugins/developer
 | `/go-review` | Multi-persona code review (6 экспертов) |
 | `/mr-review` | Ревью чужого GitLab MR — fetch diff, review, публикация замечаний |
 | `/scaffold` | Создание нового сервиса из шаблона gold-apisrv |
+| `/playwright-cli` | Browser automation — accessibility tree, interaction, network, screenshots |
 
 ### Справочники по инструментам
 
@@ -148,7 +149,7 @@ vmkteam/claude-plugins/
 │           ├── onboard/SKILL.md
 │           ├── solve/SKILL.md
 │           ├── go-review/SKILL.md
-│           └── .../SKILL.md      # ещё 30 скиллов
+│           └── .../SKILL.md      # ещё 31 скилл
 ├── LICENSE
 └── README.md
 ```

@@ -298,6 +298,10 @@ make lint
 # /commit-msg
 ```
 
+**Артефакты:** проверить настройку `artifacts` из `project-index.md`:
+- `artifacts: commit` → включить `docs/llm/tasks/{TASK_ID}/` в коммит
+- `artifacts: comment` → **НЕ** добавлять `docs/llm/tasks/` в коммит; артефакты будут опубликованы как коммент (шаг 11)
+
 ### ⏸ HITL: Подтверждение коммита
 
 Показать:
@@ -305,6 +309,7 @@ make lint
 - Commit message
 - `git diff --stat`
 - Артефакты: `docs/llm/tasks/{TASK_ID}/` (research, spec, review)
+- Режим артефактов: `{commit/comment}`
 
 Пользователь подтверждает:
 - **Commit** — `git add {files} && git commit`
@@ -313,7 +318,9 @@ make lint
   git add {files} && git commit && git push -u origin {TASK_ID} \
     -o merge_request.create \
     -o merge_request.target=devel \
-    -o "merge_request.title={TASK_ID} {commit_title}"
+    -o "merge_request.title={TASK_ID} {commit_title}" \
+    -o merge_request.squash_on_merge \
+    -o merge_request.remove_source_branch
   ```
 - **Отмена** — не коммитить
 
@@ -322,6 +329,65 @@ make lint
 ### 11. YOUTRACK — обновить задачу после пуша
 
 После успешного push в origin.
+
+### 11b. ARTIFACTS — публикация артефактов (если `artifacts: comment`)
+
+Если `artifacts: comment` в `project-index.md`, спросить пользователя куда прикрепить:
+
+### ⏸ HITL: Куда прикрепить артефакты?
+
+- **MR** — коммент в Merge Request
+- **YouTrack** — коммент в задаче
+- **Пропустить** — не публиковать
+
+#### Вариант A: Коммент в MR (GitLab)
+
+Один коммент с двумя спойлерами (research + spec). Review не публикуется — это внутренний артефакт.
+
+```bash
+# Получить MR IID по ветке
+MR_IID=$(pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/merge_requests?source_branch={TASK_ID}&state=opened' -s | jq -r '.[0].iid')
+
+# Собрать коммент из файлов
+RESEARCH=$(cat docs/llm/tasks/{TASK_ID}/research.md)
+SPEC=$(cat docs/llm/tasks/{TASK_ID}/spec.md)
+
+# Создать коммент со спойлерами
+pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/merge_requests/'"${MR_IID}"'/notes' -s \
+  -X POST --data-urlencode "body=## Артефакты /solve
+
+<details>
+<summary>Research — анализ задачи</summary>
+
+${RESEARCH}
+
+</details>
+
+<details>
+<summary>Spec — план реализации</summary>
+
+${SPEC}
+
+</details>"
+```
+
+#### Вариант B: Коммент в YouTrack
+
+Один коммент с двумя спойлерами (YouTrack `{cut}` синтаксис).
+
+```bash
+RESEARCH=$(cat docs/llm/tasks/{TASK_ID}/research.md)
+SPEC=$(cat docs/llm/tasks/{TASK_ID}/spec.md)
+
+pcurl @{yt_profile} 'https://{yt_host}/api/issues/{TASK_ID}/comments?fields=id,text' -s \
+  -X POST -H 'Content-Type: application/json' \
+  -d '{
+    "text": "**Артефакты /solve**\n\n{cut text=\"Research — анализ задачи\"}\n'"$(echo "$RESEARCH" | jq -sR .)"'\n{cut}\n\n{cut text=\"Spec — план реализации\"}\n'"$(echo "$SPEC" | jq -sR .)"'\n{cut}"
+  }'
+```
+
+> В обоих вариантах review-артефакты (review-initial.md, review-final.md) не публикуются — они нужны только в процессе работы.
+> Артефакты на диске (`docs/llm/tasks/{TASK_ID}/`) остаются локально, но НЕ коммитятся.
 
 ### ⏸ HITL: Подтверждение обновления YouTrack
 
@@ -366,4 +432,4 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues/{TASK_ID}' -s -X POST \
 - Если задача слишком большая — предложить разбить на подзадачи
 - **Все задачи из YouTrack решать ТОЛЬКО через /solve** — даже если кажутся простыми. Это гарантирует артефакты, ревью и HITL на каждом шаге
 - Использовать скиллы по контексту: /mfd, /zenrpc, /colgen, /pgd при работе с соответствующим кодом
-- Артефакты в `docs/llm/tasks/{TASK_ID}/` коммитятся вместе с кодом
+- Артефакты в `docs/llm/tasks/{TASK_ID}/` — коммитятся вместе с кодом (`artifacts: commit`) или публикуются как коммент со спойлерами (`artifacts: comment`). Настройка в `project-index.md`
