@@ -1,6 +1,6 @@
 ---
 name: incident
-description: "Incident — реакция на production инцидент. Сбор данных, timeline, root cause, hotfix, post-mortem."
+description: "Incident — реакция на production-инцидент: сбор данных, timeline, root cause, hotfix, post-mortem. Используй когда пользователь сообщает об инциденте/падении на prod и нужен полный цикл реакции с артефактами."
 ---
 
 # Incident — реакция на production инцидент

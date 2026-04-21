@@ -1,6 +1,6 @@
 ---
 name: ci-cd
-description: "CI/CD — GitLab CI + Nomad deploy для vmkteam Go-сервисов."
+description: "CI/CD — GitLab CI + Nomad deploy для Go-сервисов vmkteam. Используй при редактировании .gitlab-ci.yml, *.nomad.hcl, настройке пайплайна или дебаге деплоя."
 ---
 
 # CI/CD — Pipeline и Deploy

@@ -1,6 +1,6 @@
 ---
 name: mr-review
-description: "MR Review — ревью чужого Merge Request. Fetch diff из GitLab → /go-review → публикация замечаний как threads в MR."
+description: "MR Review — ревью чужого Merge Request с публикацией threads в GitLab. Используй когда просят отревьюить MR коллеги по ссылке или ID (fetch diff → /go-review → публикация замечаний)."
 ---
 
 # MR Review — ревью чужого Merge Request

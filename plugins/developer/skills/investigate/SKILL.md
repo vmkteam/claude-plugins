@@ -1,6 +1,6 @@
 ---
 name: investigate
-description: "Investigate — полное расследование инцидента с использованием всех доступных data sources."
+description: "Investigate — расследование проблемы по всем data sources (Sentry, Prometheus, Loki, Kibana, Nomad). Используй когда есть симптом (ошибка, деградация, аномалия), но причина неизвестна, а полноценный /incident избыточен."
 ---
 
 # /investigate — Расследование инцидента

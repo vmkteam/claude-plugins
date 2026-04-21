@@ -1,6 +1,6 @@
 ---
 name: errors
-description: "Errors — дайджест ошибок за период из Sentry, Prometheus, Loki, Kibana."
+description: "Errors — дайджест ошибок за период из Sentry, Prometheus, Loki, Kibana. Используй когда просят отчёт по ошибкам за сутки/неделю, ретроспективу, или сводку по инциденту."
 ---
 
 # /errors — Дайджест ошибок

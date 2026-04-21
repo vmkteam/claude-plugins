@@ -1,6 +1,6 @@
 ---
 name: security
-description: "Security — справочник по безопасности vmkteam Go-сервисов. Используется при code review и разработке."
+description: "Security — чеклист безопасности Go-сервисов: валидация входа, секреты, auth, CVE-зависимости. Используй при правке auth-middleware, обработке user input, внешних вызовах, или как чеклист в /go-review."
 ---
 
 # Security — безопасность vmkteam Go-сервисов

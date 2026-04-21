@@ -1,6 +1,6 @@
 ---
 name: grafana
-description: "Grafana — дашборды, Prometheus и Loki proxy через REST API и pcurl."
+description: "Grafana — дашборды, Prometheus и Loki proxy через REST API. Используй при работе с дашбордами, запросах к Prom/Loki через Grafana datasource UID, или поиске алертов."
 ---
 
 # Grafana — дашборды и proxy

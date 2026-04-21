@@ -1,6 +1,6 @@
 ---
 name: onboard
-description: "Onboard — интерактивный онбординг в проект. Сканирует структуру, обнаруживает системы, создаёт индекс знаний."
+description: "Onboard — интерактивный онбординг: discovery структуры и внешних систем, создание индекса знаний (project-index.md + infra). Используй при первой работе с новым проектом или когда project-index.md отсутствует/устарел."
 ---
 
 # Onboard — интерактивный онбординг в проект
@@ -82,13 +82,17 @@ description: "Onboard — интерактивный онбординг в пр�
 16. **API endpoints**: URL dev/prod, pcurl-профили, rpc_endpoint?
 17. **Nomad job**: имя job?
 18. **Специфика**: особые правила, code style?
-19. **Артефакты /solve** (`artifacts`): коммитить `docs/llm/tasks/` вместе с MR или публиковать как коммент со спойлерами? Варианты:
-    - `commit` — артефакты коммитятся в ветку (по умолчанию)
-    - `comment` — артефакты публикуются как коммент в MR (GitLab) или задачу (YouTrack)
+19. **Базовая ветка** (`base_branch`): от какой ветки ответвляются feature-ветки и куда идут MR? (по умолчанию `devel`; иногда `master`, `main`)
+20. **Артефакты /solve** (`artifacts_target`): куда публиковать артефакты как коммент со спойлерами? Варианты:
+    - `gitlab` — коммент в MR (по умолчанию)
+    - `youtrack` — коммент в задаче
+    - `ask` — спрашивать каждый раз
+
+    > `docs/llm/tasks/` **никогда не коммитится** — остаётся локально. `.gitignore` должен содержать `docs/llm/`.
 
 ### Шаг 3b. Краткий опрос (infra-группа уже есть)
 
-Спрашивать только service-level (пп. 10-18 из шага 3a). Infra-level берётся из `~/.claude/memory/infra-{group}.md`.
+Спрашивать только service-level (пп. 10-20 из шага 3a). Infra-level берётся из `~/.claude/memory/infra-{group}.md`.
 
 ### Шаг 4. Проверка подключений
 
@@ -337,7 +341,9 @@ infra: ~/.claude/memory/infra-{group}.md
 - rpc_endpoint: /rpc/
 
 ## Solve settings
-- artifacts: {commit/comment} — куда складывать артефакты /solve (docs/llm/tasks/)
+- base_branch: {devel} — базовая ветка, от которой ответвляются feature-ветки и против которой делается MR/review
+- artifacts_target: {gitlab/youtrack/ask} — куда публиковать артефакты /solve как коммент со спойлерами
+- Артефакты `docs/llm/tasks/` НЕ коммитятся (должны быть в `.gitignore`)
 
 ## Makefile-команды
 {список ключевых make targets с кратким описанием}

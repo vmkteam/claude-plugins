@@ -1,6 +1,6 @@
 ---
 name: solve
-description: "Solve — решение задачи из YouTrack. Полный цикл: анализ → план → реализация → ревью → коммит с артефактами."
+description: "Solve — полный цикл решения задачи из YouTrack: preflight → анализ → план → реализация → ревью → коммит. Используй при любой YouTrack-задаче (`/solve PLF-819`); флаг `--fast` сокращает HITL для тривиальных багфиксов."
 ---
 
 # /solve — решение задачи
@@ -11,9 +11,27 @@ description: "Solve — решение задачи из YouTrack. Полный 
 ## Использование
 
 ```
-/solve PLF-819
-/solve WEB-456
+/solve PLF-819                 # полный цикл с 5 HITL
+/solve PLF-819 --fast          # ускоренный режим: 2 HITL (commit + youtrack)
+/solve --fast WEB-456          # позиция флага любая
 ```
+
+### Флаг `--fast`
+
+Для тривиальных багфиксов и повторяющихся паттернов. Пропускает HITL-паузы **research** и **spec** — шаги выполняются и артефакты пишутся, но пользователя не спрашивают до COMMIT.
+
+**Что делает `--fast`:**
+- ANALYZE и PLAN объединяются в одну plan-mode сессию (research.md + spec.md создаются подряд, один exit из plan mode вместо двух)
+- REVIEW (/go-review) выполняется, показывается пользователю, но без отдельного HITL до коммита
+- PREFLIGHT, COMMIT HITL, YOUTRACK HITL — остаются обязательными
+
+**Когда НЕ использовать:**
+- Сложная архитектурная задача
+- Новый сервис/модуль
+- Задача затрагивает больше 3 файлов
+- Есть сомнения в требованиях
+
+Если пользователь запускает `/solve --fast`, а задача крупная — предложи переключиться на обычный режим перед PLAN.
 
 ## Артефакты
 
@@ -30,7 +48,7 @@ docs/llm/tasks/PLF-819/
 ## Flow
 
 ```
-FETCH → ANALYZE → research.md → ⏸
+PREFLIGHT → FETCH → ANALYZE → research.md → ⏸
   → PLAN → spec.md → ⏸
   → TEST → IMPLEMENT → SIMPLIFY → FMT+LINT → VERIFY
   → REVIEW → ⏸
@@ -42,6 +60,29 @@ FETCH → ANALYZE → research.md → ⏸
 - PLAN начинается только после утверждения research
 - IMPLEMENT — только после утверждения spec
 - REVIEW (/go-review) — всегда, без исключений
+
+---
+
+### 0. PREFLIGHT — актуальность базовой ветки
+
+Перед любым workflow проверить, что локальный базовый бранч синхронизирован с `origin`. Иначе analyze/plan/review пойдут по устаревшему коду.
+
+Имя базовой ветки — из `project-index.md` (`base_branch`, по умолчанию `devel`).
+
+```bash
+BASE={base_branch}
+git fetch origin $BASE --quiet
+LOCAL=$(git rev-parse $BASE 2>/dev/null || echo none)
+REMOTE=$(git rev-parse origin/$BASE)
+BEHIND=$(git rev-list --count $BASE..origin/$BASE 2>/dev/null || echo ?)
+```
+
+Если `LOCAL != REMOTE` (локальный отстаёт/расходится) — ⏸ HITL:
+- **Обновить** — `git checkout $BASE && git pull --ff-only` (при незакоммиченных изменениях сначала stash), затем вернуться на исходную ветку
+- **Продолжить** — на свой риск, база устаревшая (явно предупредить пользователя)
+- **Отмена** — прервать workflow
+
+Если `LOCAL == REMOTE` — переходить к FETCH без вопросов.
 
 ---
 
@@ -60,6 +101,8 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues/{TASK_ID}?fields=idReadable,su
 - Приоритет
 
 Создать директорию: `mkdir -p docs/llm/tasks/{TASK_ID}/`
+
+Проверить `.gitignore` на наличие `docs/llm/`. Если нет — предложить пользователю добавить (артефакты никогда не коммитятся).
 
 **Аттачи:**
 ```bash
@@ -129,16 +172,16 @@ pcurl @{sentry_profile} 'https://{sentry_host}/api/0/organizations/{org}/issues/
 
 **Артефакт:** Прочитать шаблон из `skills/solve/research-template.md`, заполнить и сохранить как `docs/llm/tasks/{TASK_ID}/research.md`.
 
-### ⏸ HITL: Утверждение research
+### ⏸ HITL: Утверждение research _(пропускается в `--fast`)_
 
 **Чеклист артефактов:** убедиться что `docs/llm/tasks/{TASK_ID}/research.md` записан на диск.
 
-Показать пользователю research.md. **Не переходить к PLAN пока research не утверждён.**
-
-Пользователь может:
+В обычном режиме показать пользователю research.md. **Не переходить к PLAN пока research не утверждён.** Пользователь может:
 - **Утвердить** — переходим к PLAN
 - **Уточнить** — обновить research.md, показать снова
 - **Отклонить** — пересмотреть подход
+
+В `--fast` пауза пропускается — сразу переходим к PLAN в той же plan-mode сессии.
 
 ### 3. PLAN — план решения (plan mode)
 
@@ -156,16 +199,16 @@ pcurl @{sentry_profile} 'https://{sentry_host}/api/0/organizations/{org}/issues/
 **СОХРАНИТЬ:** прочитать шаблон из `skills/solve/spec-template.md`, заполнить и записать как `docs/llm/tasks/{TASK_ID}/spec.md` через Write tool. Не откладывать.
 Секции "Миграции" и "API compatibility" включать только если применимо к задаче.
 
-### ⏸ HITL: Утверждение spec
+### ⏸ HITL: Утверждение spec _(в `--fast` — единая точка выхода из plan mode для research+spec)_
 
 **Чеклист артефактов:** убедиться что `docs/llm/tasks/{TASK_ID}/spec.md` записан на диск.
 
-Показать пользователю spec.md (включая примеры кода). **Не переходить к TEST/IMPLEMENT пока spec не утверждён.**
-
-Пользователь может:
+**Обычный режим:** показать пользователю spec.md (включая примеры кода). Не переходить к TEST/IMPLEMENT пока spec не утверждён. Пользователь может:
 - **Утвердить** — переходим к TEST → IMPLEMENT
 - **Скорректировать** — обновить spec.md, показать снова
 - **Отклонить** — вернуться к research
+
+**`--fast` режим:** research.md и spec.md показываются подряд одним блоком, пользователь подтверждает оба одним действием (выход из plan mode). Если задача оказалась крупнее ожидаемого — предложить переключиться в обычный режим и прервать поток.
 
 ### 4. TEST — написать тесты (TDD)
 
@@ -265,13 +308,15 @@ make test
 - Первое ревью → `docs/llm/tasks/{TASK_ID}/review-initial.md`
 - После исправлений → `docs/llm/tasks/{TASK_ID}/review-final.md`
 
-### ⏸ HITL: Оценка ревью
+### ⏸ HITL: Оценка ревью _(пропускается в `--fast` если нет blocker/major)_
 
 **Чеклист артефактов:** убедиться что `docs/llm/tasks/{TASK_ID}/review-initial.md` (или `review-final.md`) записан на диск.
 
 Показать результаты ревью пользователю. Пользователь решает:
 - **Approve** — идём к коммиту
 - **Fix** — вернуться к IMPLEMENT, исправить замечания (→ повторить SIMPLIFY → FMT+LINT → VERIFY → REVIEW)
+
+**`--fast` режим:** если в ревью нет `blocker`/`major` замечаний — автоматически идти к HITL коммита (замечания `minor`/`nit` показать пользователю там же). Если есть `blocker`/`major` — пауза включается вне зависимости от флага.
 
 ### Pre-commit checklist — артефакты
 
@@ -298,18 +343,15 @@ make lint
 # /commit-msg
 ```
 
-**Артефакты:** проверить настройку `artifacts` из `project-index.md`:
-- `artifacts: commit` → включить `docs/llm/tasks/{TASK_ID}/` в коммит
-- `artifacts: comment` → **НЕ** добавлять `docs/llm/tasks/` в коммит; артефакты будут опубликованы как коммент (шаг 11)
+**Артефакты:** `docs/llm/tasks/` **НЕ коммитится никогда** — остаётся локально. Публикуется как коммент (шаг 11b) в GitLab или YouTrack по настройке `artifacts_target` из `project-index.md`. Убедись, что `docs/llm/` в `.gitignore` — если нет, предложи добавить.
 
 ### ⏸ HITL: Подтверждение коммита
 
 Показать:
 - Ветку: `{TASK_ID}`
 - Commit message
-- `git diff --stat`
-- Артефакты: `docs/llm/tasks/{TASK_ID}/` (research, spec, review)
-- Режим артефактов: `{commit/comment}`
+- `git diff --stat` (без `docs/llm/` — артефакты не коммитятся)
+- Локальные артефакты: `docs/llm/tasks/{TASK_ID}/` (research, spec, review) — будут опубликованы комментом на шаге 11b
 
 Пользователь подтверждает:
 - **Commit** — `git add {files} && git commit`
@@ -330,13 +372,16 @@ make lint
 
 После успешного push в origin.
 
-### 11b. ARTIFACTS — публикация артефактов (если `artifacts: comment`)
+### 11b. ARTIFACTS — публикация артефактов комментом
 
-Если `artifacts: comment` в `project-index.md`, спросить пользователя куда прикрепить:
+Проверить `artifacts_target` в `project-index.md`:
+- `gitlab` → сразу публиковать в MR (вариант A)
+- `youtrack` → сразу публиковать в задачу (вариант B)
+- `ask` или не задано → спросить пользователя
 
-### ⏸ HITL: Куда прикрепить артефакты?
+### ⏸ HITL: Куда прикрепить артефакты? (только при `ask`)
 
-- **MR** — коммент в Merge Request
+- **GitLab** — коммент в Merge Request
 - **YouTrack** — коммент в задаче
 - **Пропустить** — не публиковать
 
@@ -387,7 +432,7 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues/{TASK_ID}/comments?fields=id,t
 ```
 
 > В обоих вариантах review-артефакты (review-initial.md, review-final.md) не публикуются — они нужны только в процессе работы.
-> Артефакты на диске (`docs/llm/tasks/{TASK_ID}/`) остаются локально, но НЕ коммитятся.
+> `docs/llm/tasks/{TASK_ID}/` всегда остаётся только локально — в коммит никогда не попадает.
 
 ### ⏸ HITL: Подтверждение обновления YouTrack
 
@@ -427,9 +472,10 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues/{TASK_ID}' -s -X POST \
 - **Любой дополнительный коммит после пуша тоже требует подтверждения** (CI упал → hotfix → ⏸ HITL)
 - Ветка всегда по ID задачи: `PLF-819`, `WEB-456`
 - `make fmt lint` запускается автоматически перед review и перед коммитом
-- `/go-review` — всегда, без исключений
+- `/go-review` — всегда, без исключений (даже в `--fast`)
+- `--fast` не пропускает PREFLIGHT, VERIFY, REVIEW, COMMIT HITL, YOUTRACK HITL. Пропускает только паузы research и spec (объединяет их в одну) и review HITL при отсутствии blocker/major
 - При возврате на IMPLEMENT после ревью — повторить весь цикл SIMPLIFY → FMT+LINT → VERIFY → REVIEW
 - Если задача слишком большая — предложить разбить на подзадачи
 - **Все задачи из YouTrack решать ТОЛЬКО через /solve** — даже если кажутся простыми. Это гарантирует артефакты, ревью и HITL на каждом шаге
 - Использовать скиллы по контексту: /mfd, /zenrpc, /colgen, /pgd при работе с соответствующим кодом
-- Артефакты в `docs/llm/tasks/{TASK_ID}/` — коммитятся вместе с кодом (`artifacts: commit`) или публикуются как коммент со спойлерами (`artifacts: comment`). Настройка в `project-index.md`
+- Артефакты в `docs/llm/tasks/{TASK_ID}/` **никогда не коммитятся** — публикуются как коммент со спойлерами в GitLab MR или YouTrack. Цель настраивается через `artifacts_target` в `project-index.md` (`gitlab` / `youtrack` / `ask`). `docs/llm/` должен быть в `.gitignore`

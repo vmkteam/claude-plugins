@@ -1,156 +1,69 @@
 ---
 name: mfd
-description: "MFD Generator — справочник по генерации Go-кода из PostgreSQL схем."
+description: "MFD Generator — генерация Go-кода из PostgreSQL-схемы (модели, репозитории, фабрики тестов). Используй при правке .mfd файла, запуске `make generate`/`make mfd`, добавлении search-полей или db-test фабрик."
 ---
 
-# MFD Generator — справочник по использованию
+# MFD Generator
 
-Ты — эксперт по mfd-generator (https://github.com/vmkteam/mfd-generator).
+Upstream: https://github.com/vmkteam/mfd-generator
 
-## Обзор
+Генерирует Go-код (модели, репозитории, VT-сервисы) из XML-описания схемы PostgreSQL. Запускай через `--help` бинарника для полного списка флагов.
 
-MFD Generator генерирует Go-код (модели, репозитории, VT-сервисы) из XML-описания схемы PostgreSQL.
+## Makefile-цели (vmkteam-конвенция)
 
-## Makefile-команды
+- **XML из БД:** `make mfd-xml`, `make mfd-vt-xml`, `make mfd-xml-lang`
+- **Go-код:** `make mfd-model`, `make mfd-repo NS=<ns>`, `make mfd-db-test`
+- **VT/UI:** `make mfd-vt-rpc NS=<ns>`, `make mfd-vt-template NS=<ns>`
+- **Финал:** `make generate` (zenrpc + colgen)
 
-### Группа 1 — XML-генераторы (из БД в XML)
-
-```bash
-make mfd-xml          # обновить XML из схемы PostgreSQL
-make mfd-vt-xml       # сгенерировать VT XML
-make mfd-xml-lang     # сгенерировать переводы
-```
-
-### Группа 2 — Go-генераторы кода
-
-```bash
-make mfd-model        # сгенерировать Go-модели (model.go, model_search.go, model_validate.go)
-make mfd-repo NS=<ns> # сгенерировать репозитории для namespace
-make mfd-db-test      # сгенерировать тестовые хелперы
-```
-
-### Группа 3 — VT/UI генераторы
-
-```bash
-make mfd-vt-rpc NS=<ns>      # сгенерировать VT RPC-код
-make mfd-vt-template NS=<ns> # сгенерировать JS-шаблоны
-make generate                  # zenrpc + colgen
-```
-
-## Типичные сценарии
-
-### Добавлена новая таблица в БД
+### Новая таблица
 ```bash
 make mfd-xml && make mfd-model && make mfd-repo NS=<ns> && make mfd-db-test
 make mfd-vt-xml && make mfd-vt-rpc NS=<ns> && make generate
 ```
 
-### Изменилась структура существующей таблицы
+### Изменение существующей
 ```bash
 make mfd-xml && make mfd-model && make mfd-repo NS=<ns> && make mfd-db-test
 ```
 
-## Структура XML
+## Layout
 
-### MFD-файл (docs/model/<project>.mfd)
-```xml
-<Project>
-    <Name>reviewsrv.mfd</Name>
-    <PackageNames>
-        <string>common</string>
-        <string>review</string>
-    </PackageNames>
-    <GoPGVer>10</GoPGVer>
-    <TableMapping>
-        <common>users</common>
-        <review>reviews,reviewFiles,issues</review>
-    </TableMapping>
-</Project>
-```
+- `docs/model/<project>.mfd` — корневой MFD (PackageNames, TableMapping, GoPGVer)
+- `docs/model/<namespace>.xml` — per-namespace Entities/Attributes/Searches
 
-### Namespace XML (docs/model/<namespace>.xml)
+## Entity/Attribute — vmkteam-конвенции
 
-```xml
-<Package>
-    <Name>blog</Name>
-    <Entities>
-        <Entity Name="Post" Namespace="blog" Table="posts">
-            <Attributes>
-                <Attribute Name="ID" DBName="postId" DBType="int4" GoType="int" PK="true" Nullable="Yes" Addable="true" Updatable="true" />
-                <Attribute Name="Title" DBName="title" DBType="varchar" GoType="string" Nullable="No" Addable="true" Updatable="true" Max="255" />
-                <Attribute Name="UserID" DBName="userId" DBType="int4" GoType="int" FK="User" Nullable="No" Addable="true" Updatable="true" />
-            </Attributes>
-            <Searches>
-                <Search Name="IDs" AttrName="ID" SearchType="SEARCHTYPE_ARRAY" />
-                <Search Name="TitleILike" AttrName="Title" SearchType="SEARCHTYPE_ILIKE" />
-            </Searches>
-        </Entity>
-    </Entities>
-</Package>
-```
+- `Name` = Go-поле; PK автоматически переименовывается в `ID`
+- `FK="User"` — имя **Entity**, не таблицы
+- `Addable`/`Updatable` — флаги для INSERT/UPDATE
+- Аудит-поля `createdAt`/`modifiedAt` → `Addable="false" Updatable="false"`
+- На каждый Attribute автоматически генерируется equals-search; удалённые вручную Searches **не восстанавливаются** при `mfd-xml`
+- Переименование Name ломает ссылки из Searches/VT — искать и обновлять вручную
 
-### Свойства атрибутов (Attribute)
+### Маппинг типов (нестандартное)
 
-| Свойство | Описание |
-|----------|----------|
-| `Name` | Имя Go-поля (PK автоматически → "ID") |
-| `DBName` | Имя колонки в БД |
-| `DBType` | Тип PostgreSQL |
-| `GoType` | Тип Go |
-| `PK` | Primary key |
-| `FK` | Foreign key — ссылка на Entity (не таблицу) |
-| `Nullable` | `Yes`/`No` |
-| `Addable` | Можно задать при INSERT |
-| `Updatable` | Можно задать при UPDATE |
-| `Min`/`Max` | Ограничения длины/значения |
+- `json`/`jsonb` → именованный тип `<EntityFieldName>` (не `map[string]any`)
+- `bigint` → `int64`; `integer`/`serial` → `int`
+- `numeric`/`double` → `float64`
 
-### Маппинг типов PostgreSQL → Go
+### SearchType — полный список
 
-| PostgreSQL | Go |
-|-----------|-----|
-| integer, serial | int |
-| bigint | int64 |
-| real | float32 |
-| double, numeric | float64 |
-| text, varchar, uuid | string |
-| boolean | bool |
-| timestamp, date | time.Time |
-| json, jsonb | `EntityFieldName` (именованный тип) |
+`EQUALS`, `NOT_EQUALS`, `NULL`, `NOT_NULL`, `GE`/`LE`/`G`/`L`, `ILIKE`, `ARRAY` (IN), `NOT_INARRAY`, `ARRAY_CONTAINS` (ANY), `JSONB_PATH` (@>).
 
-### Типы поиска (SearchType)
+Все с префиксом `SEARCHTYPE_`.
 
-| Тип | SQL-условие |
-|-----|-------------|
-| `SEARCHTYPE_EQUALS` | `f = v` |
-| `SEARCHTYPE_NOT_EQUALS` | `f != v` |
-| `SEARCHTYPE_NULL` / `NOT_NULL` | `f IS NULL` / `IS NOT NULL` |
-| `SEARCHTYPE_GE` / `LE` / `G` / `L` | `>=`, `<=`, `>`, `<` |
-| `SEARCHTYPE_ILIKE` | `f ILIKE '%v%'` |
-| `SEARCHTYPE_ARRAY` | `f IN (v1, v2)` |
-| `SEARCHTYPE_NOT_INARRAY` | `f NOT IN (v1, v2)` |
-| `SEARCHTYPE_ARRAY_CONTAINS` | `v = ANY(f)` |
-| `SEARCHTYPE_JSONB_PATH` | `f @> v` |
+### JSONB-поиск
 
-### Поиск по JSON/JSONB полям
-
-Формат: `AttrName="JsonField->keyName"`. Обязательно указывать `GoType`.
-
+`AttrName` использует `->` + обязательный `GoType`:
 ```xml
 <Search Name="SmsCount" AttrName="Params->smsCount" SearchType="SEARCHTYPE_EQUALS" GoType="int" />
 ```
 
-## Правила ручного редактирования XML
-
-- `Name` атрибута используется в ссылках из Searches и VT — при переименовании обновить все ссылки
-- `FK` указывается как имя Entity, не таблицы
-- Поля `createdAt`/`modifiedAt` → `Addable="false"`, `Updatable="false"`
-- Удалённые вручную поиски НЕ восстанавливаются при `mfd-xml`
-- Для каждого атрибута автоматически генерируется equals-поиск в Search struct
-
-## Маркеры сгенерированного кода
+## Маркер generated-файлов
 
 ```go
 // Code generated by mfd-generator v0.6.1; DO NOT EDIT.
 ```
 
-**НЕ РЕДАКТИРУЙ** файлы с таким заголовком. Исключение: `model_params.go` (append-only).
+Не редактировать. Исключение — `model_params.go` (append-only).

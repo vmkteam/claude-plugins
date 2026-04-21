@@ -1,6 +1,6 @@
 ---
 name: nomad
-description: "Nomad — оркестрация сервисов. Метрики через Prometheus, API через pcurl."
+description: "Nomad — оркестрация: jobs, allocations, метрики, логи. Используй при правке *.nomad.hcl, разборе упавшей аллокации, просмотре логов job или проверке статуса деплоя."
 ---
 
 # Nomad — оркестрация сервисов
