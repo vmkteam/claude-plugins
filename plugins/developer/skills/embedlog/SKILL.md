@@ -1,25 +1,16 @@
 ---
 name: embedlog
-description: "Embedlog — встраиваемое логирование для Go с Prometheus метриками и structured logging."
+description: "Embedlog — встраиваемое structured-логирование с Prometheus-метриками. Используй при подключении логгера в новую структуру (embedlog.Logger), добавлении полей в лог или настройке уровней."
 ---
 
-# Embedlog — встраиваемое логирование
+# Embedlog
 
-embedlog (https://github.com/vmkteam/embedlog) — библиотека логирования для Go, предназначенная для встраивания в структуры приложения.
+- Upstream: https://github.com/vmkteam/embedlog
+- Библиотека логирования для встраивания в структуры через `embedlog.Logger`
+- Dual-level: info → stdout, error → stderr (автосплит)
+- JSON (prod) / text-цветной (dev, `NewDevLogger`); source location авто
 
-## Ключевые возможности
-
-- **Dual-level logging** — stdout (info) и stderr (errors) автоматически разделяются
-- **JSON и text форматы** — JSON для production, text для разработки
-- **Print/Error API** — простой интерфейс с поддержкой context
-- **Embeddable design** — встраивается в структуры через `embedlog.Logger`
-- **Prometheus метрики** — `app_log_events_total` (info/error)
-- **Source location** — автоматическое логирование файла/строки
-- **NewDevLogger** — цветное логирование для dev-окружения
-
-## Использование
-
-### Встраивание в структуры
+## Встраивание
 
 ```go
 type MyService struct {
@@ -27,17 +18,8 @@ type MyService struct {
     repo db.EntityRepo
 }
 
-func NewMyService(logger embedlog.Logger, repo db.EntityRepo) *MyService {
-    return &MyService{
-        Logger: logger,
-        repo:   repo,
-    }
-}
-
-// Использование
 func (s *MyService) Process(ctx context.Context) error {
     s.Print("processing started")
-    // ...
     if err != nil {
         s.Error("processing failed", "err", err)
         return err
@@ -47,53 +29,34 @@ func (s *MyService) Process(ctx context.Context) error {
 }
 ```
 
-### Инициализация
+## Init
 
 ```go
-// Production (JSON)
-logger := embedlog.NewLogger(os.Stdout, os.Stderr, true) // json=true
-
-// Development (text, цветной)
-logger := embedlog.NewDevLogger()
+logger := embedlog.NewLogger(os.Stdout, os.Stderr, true) // json=true, prod
+logger := embedlog.NewDevLogger()                         // text+colors, dev
 ```
 
-### API
+## API
+
+- `logger.Print(msg, args...)` — info → stdout
+- `logger.Error(msg, args...)` — error → stderr
+- `logger.PrintOrErr(err, msg)` — `err != nil` ? Error : Print
+
+Всегда structured args (`"key", val`), не конкатенация.
+
+## Метрики
+
+`app_log_events_total{type="info"|"error"}` — counter (алерты на error rate).
+
+## Интеграции
 
 ```go
-logger.Print(msg string, args ...any)     // info → stdout
-logger.Error(msg string, args ...any)     // error → stderr
-logger.PrintOrErr(err error, msg string)  // если err != nil → Error, иначе Print
-```
-
-## Prometheus метрики
-
-Автоматически экспортируются:
-
-| Метрика | Labels | Описание |
-|---------|--------|----------|
-| `app_log_events_total` | `type="info"` | Количество info-логов |
-| `app_log_events_total` | `type="error"` | Количество error-логов |
-
-Полезно для алертов на рост error rate.
-
-## Интеграция с zenrpc-middleware
-
-```go
+// zenrpc-middleware
 rpc.Use(
     zm.WithSLog(logger.Print, zm.DefaultServerName, nil),
     zm.WithErrorSLog(logger.Error, zm.DefaultServerName, nil),
 )
-```
 
-## Интеграция с go-pg (SQL logging)
-
-```go
-// dblog.go — логирование SQL-запросов
+// go-pg SQL logging (dblog.go)
 zm.WithSQLLogger(dbo.DB, isDevel, allowDebugFn(), allowDebugFn())
 ```
-
-## Рекомендации
-
-- Production: JSON формат, мониторинг `app_log_events_total{type="error"}`
-- CLI: text формат с verbose флагом
-- Structured args: `s.Print("order created", "orderId", id, "total", total)` — не конкатенация строк

@@ -1,6 +1,6 @@
 ---
 name: gitlab
-description: "GitLab — работа с MR, pipelines, code review через REST API v4 и pcurl."
+description: "GitLab — работа с MR, pipelines, discussions через REST API v4 и pcurl. Используй для поиска/создания/обновления MR, чтения пайплайнов, публикации threads или комментариев в MR."
 ---
 
 # GitLab — работа с MR, pipelines, code review

@@ -1,6 +1,6 @@
 ---
 name: api-health
-description: "API Health — проверка здоровья JSON-RPC сервисов (zenrpc), SMD, тайминги."
+description: "API Health — проверка здоровья JSON-RPC сервиса через SMD. Используй когда нужно убедиться что RPC-endpoint жив, собрать тайминги методов или диагностировать недоступность API."
 ---
 
 # API Health — проверка JSON-RPC сервисов

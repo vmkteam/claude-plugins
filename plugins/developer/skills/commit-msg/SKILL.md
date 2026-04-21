@@ -1,6 +1,6 @@
 ---
 name: commit-msg
-description: "Generate a concise commit message in English based on git diff."
+description: "Commit message — краткое сообщение коммита на английском из git diff. Используй перед `git commit`, после /solve, или при явной просьбе 'сгенерируй commit message'."
 ---
 
 Generate a concise commit message in English based on the full `git diff` (both staged and unstaged changes).

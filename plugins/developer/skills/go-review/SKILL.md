@@ -1,6 +1,6 @@
 ---
 name: go-review
-description: "Go Review — multi-persona code review для Go MR/PR. Запускается после решения задачи или по запросу."
+description: "Go Review — multi-persona code review текущего git diff (6 экспертов: Cheney, Pike, Valsorda, Hashimoto, Bourgon + Common). Используй после реализации задачи перед коммитом, или по явному запросу 'code review', 'ревью моего кода'."
 ---
 
 # Go Review — multi-persona code review
@@ -28,6 +28,7 @@ description: "Go Review — multi-persona code review для Go MR/PR. Запу�
 
 ## Порядок ревью
 
+0. **Preflight** — проверь, что локальный базовый бранч (из `project-index.md`, по умолчанию `devel`) актуален: `git fetch origin {base_branch} --quiet && git rev-list --count {base_branch}..origin/{base_branch}`. Если отстаёт — ⏸ HITL: обновить или продолжить на свой риск (иначе diff считается против устаревшей базы)
 1. Прочитай текст задачи (из YouTrack или описание ветки/MR)
 2. Получи `git diff` текущих изменений
 3. Проведи ревью каждой персоной

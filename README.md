@@ -6,7 +6,7 @@ Marketplace плагинов [Claude Code](https://docs.anthropic.com/en/docs/cl
 
 | Плагин | Описание |
 |--------|----------|
-| **[developer](#developer)** | Полный SDLC-профиль для Go API-сервисов — 34 скилла |
+| **[developer](#developer)** | Полный SDLC-профиль для Go API-сервисов — 35 скиллов |
 
 ---
 
@@ -73,20 +73,20 @@ claude --plugin-dir ./plugins/developer
 /investigate API тормозит последние 30 минут
 ```
 
-## Скиллы (34)
+## Скиллы (35)
 
 ### Workflow
 
 | Скилл | Описание |
 |-------|----------|
 | `/onboard` | Интерактивный онбординг — сканирование, discovery систем, индекс знаний |
-| `/solve` | Решение задачи из YouTrack от тикета до коммита (11 шагов, 5 HITL) |
+| `/solve` | Решение задачи из YouTrack от тикета до коммита (11 шагов, 5 HITL; `--fast` → 2 HITL) |
 | `/decompose` | Декомпозиция User Story на подзадачи (PO/Dev/QA перспективы) |
 | `/commit-msg` | Генерация commit message из git diff |
 | `/go-review` | Multi-persona code review (6 экспертов) |
 | `/mr-review` | Ревью чужого GitLab MR — fetch diff, review, публикация замечаний |
 | `/scaffold` | Создание нового сервиса из шаблона gold-apisrv |
-| `/playwright-cli` | Browser automation — accessibility tree, interaction, network, screenshots |
+| `/skills-check` | Smoke-тесты интеграций — проверка pcurl-профилей и URL всех data-source скиллов |
 
 ### Справочники по инструментам
 
@@ -109,7 +109,7 @@ claude --plugin-dir ./plugins/developer
 |-------|----------|
 | `/ci-cd` | GitLab CI + Nomad deploy |
 | `/pgmigrator` | SQL-миграции PostgreSQL |
-| `/testing` | Паттерны тестирования — BDD с goconvey, реальная БД, без моков |
+| `/testing` | Паттерны тестирования — `t.Run` + testify, table-driven, реальная БД, без моков |
 | `/security` | Чеклист безопасности для Go-сервисов |
 
 ### Источники данных
@@ -180,6 +180,16 @@ vmkteam/claude-plugins/
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 - [pcurl](https://github.com/vmkteam/pcurl) для аутентифицированного доступа к API
 - Go 1.21+ и vmkteam toolchain (для скиллов кодогенерации)
+
+## Browser automation
+
+Для browser automation используйте официальный [playwright-cli](https://github.com/microsoft/playwright-cli) от Microsoft. Он ставит скилл для Claude Code одной командой:
+
+```bash
+playwright-cli install --skills claude
+```
+
+После этого Claude умеет работать с браузером напрямую: accessibility tree snapshots, element interaction, network monitoring, screenshots. Отдельный скилл в этом плагине не нужен — следите за апдейтами в upstream-репозитории.
 
 ## Лицензия
 

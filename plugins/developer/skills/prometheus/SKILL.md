@@ -1,6 +1,6 @@
 ---
 name: prometheus
-description: "Prometheus — метрики vmkteam-сервисов (appkit, zenrpc, cron). PromQL запросы через pcurl."
+description: "Prometheus — PromQL-запросы к метрикам appkit/zenrpc/cron. Используй когда нужны метрики сервиса: RPS, latency p95/p99, error rate, статус cron-задач, использование ресурсов."
 ---
 
 # Prometheus — метрики vmkteam-сервисов

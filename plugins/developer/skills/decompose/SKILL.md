@@ -1,6 +1,6 @@
 ---
 name: decompose
-description: "Decompose — исследование и декомпозиция User Story на подзадачи. Анализ кода, зависимостей, создание задач в YouTrack."
+description: "Decompose — исследование и декомпозиция User Story на подзадачи с созданием в YouTrack. Используй когда задача крупная, неконкретная или User Story — перед /solve."
 ---
 
 # /decompose — исследование и декомпозиция задачи
@@ -25,8 +25,25 @@ docs/llm/tasks/{TASK_ID}/
 ## Flow
 
 ```
-FETCH → RESEARCH → ⏸ HITL → DECOMPOSE → ⏸ HITL → CREATE → ⏸ HITL
+PREFLIGHT → FETCH → RESEARCH → ⏸ HITL → DECOMPOSE → ⏸ HITL → CREATE → ⏸ HITL
 ```
+
+---
+
+### 0. PREFLIGHT — актуальность базовой ветки
+
+Перед workflow проверить, что локальный базовый бранч синхронизирован с `origin` — иначе research пойдёт по устаревшему коду.
+
+Имя базовой ветки — из `project-index.md` (`base_branch`, по умолчанию `devel`).
+
+```bash
+BASE={base_branch}
+git fetch origin $BASE --quiet
+LOCAL=$(git rev-parse $BASE 2>/dev/null || echo none)
+REMOTE=$(git rev-parse origin/$BASE)
+```
+
+Если `LOCAL != REMOTE` — ⏸ HITL: **Обновить** (`git checkout $BASE && git pull --ff-only`, вернуться на исходную ветку) / **Продолжить** (на свой риск) / **Отмена**.
 
 ---
 

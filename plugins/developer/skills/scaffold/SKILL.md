@@ -1,6 +1,6 @@
 ---
 name: scaffold
-description: "Scaffold — создание нового Go-сервиса из шаблона vmkteam/gold-apisrv."
+description: "Scaffold — создание нового Go-сервиса из шаблона gold-apisrv. Используй когда нужно завести новый сервис с нуля (репо, структура, Makefile, CI, конфиг, main)."
 ---
 
 # Scaffold — создание нового Go-сервиса

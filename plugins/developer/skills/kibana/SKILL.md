@@ -1,6 +1,6 @@
 ---
 name: kibana
-description: "Kibana/OpenSearch Dashboards — поиск по логам через Elasticsearch/OpenSearch API и pcurl."
+description: "Kibana/OpenSearch Dashboards — поиск по логам через ES/OpenSearch API. Используй когда нужны nginx/infra-логи или access-логи, недоступные через Loki."
 ---
 
 # Kibana / OpenSearch Dashboards — логи

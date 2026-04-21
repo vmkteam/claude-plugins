@@ -1,7 +1,7 @@
 {
   "name": "vmkteam-developer",
-  "version": "1.0.2",
-  "description": "vmkteam SDLC developer profile — 34 skills for Go API services: onboarding, task solving, code review, monitoring, incident investigation, browser automation",
+  "version": "1.1.0",
+  "description": "vmkteam SDLC developer profile — 35 skills for Go API services: onboarding, task solving, code review, monitoring, incident investigation, skills health check",
   "author": {
     "name": "vmkteam",
     "url": "https://github.com/vmkteam"

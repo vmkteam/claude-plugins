@@ -1,6 +1,6 @@
 ---
 name: sentry
-description: "Sentry — мониторинг ошибок через REST API и pcurl. Поиск issues, events, releases."
+description: "Sentry — мониторинг ошибок (issues, events, releases) через REST API. Используй когда нужно найти ошибку по ключевым словам, разобрать stack trace, проверить что релиз поднялся или сопоставить ошибку с коммитом."
 ---
 
 # Sentry — мониторинг ошибок

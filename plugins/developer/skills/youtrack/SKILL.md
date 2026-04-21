@@ -1,6 +1,6 @@
 ---
 name: youtrack
-description: "YouTrack — работа с задачами через REST API и pcurl. Поиск, создание, обновление issues."
+description: "YouTrack — задачи через REST API и pcurl. Используй для поиска issues, создания, обновления описаний, смены assignee/stage/приоритета, логирования времени и работы с комментариями."
 ---
 
 # YouTrack — работа с задачами

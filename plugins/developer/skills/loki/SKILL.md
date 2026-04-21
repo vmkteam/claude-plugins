@@ -1,6 +1,6 @@
 ---
 name: loki
-description: "Loki — структурированные JSON-логи vmkteam-сервисов (appkit). LogQL запросы через Grafana proxy."
+description: "Loki — JSON-логи сервисов (appkit) через LogQL и Grafana proxy. Используй для поиска по application-логам сервиса за период: ошибки, медленные запросы, трейсы по X-Request-ID."
 ---
 
 # Loki — логи vmkteam-сервисов
