@@ -1,13 +1,14 @@
 ---
 name: sentry
 description: "Sentry — мониторинг ошибок (issues, events, releases) через REST API. Используй когда нужно найти ошибку по ключевым словам, разобрать stack trace, проверить что релиз поднялся или сопоставить ошибку с коммитом."
+allowed-tools: "Bash(pcurl:*)"
 ---
 
 # Sentry — мониторинг ошибок
 
 Sentry (self-hosted или cloud) для мониторинга ошибок. Доступ через pcurl.
 
-Конкретные хосты, org slug и профиль определяются при онбординге (`/onboard`) и хранятся в `.claude/memory/project-index.md`.
+Конкретные хосты, org slug и профиль определяются при онбординге (`/onboard`) и хранятся в `project-index.md` (auto-memory проекта) и `~/.claude/memory/infra-{group}.md`.
 
 ## Подключение
 

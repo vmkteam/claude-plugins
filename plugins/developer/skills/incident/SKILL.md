@@ -1,13 +1,14 @@
 ---
 name: incident
 description: "Incident — реакция на production-инцидент: сбор данных, timeline, root cause, hotfix, post-mortem. Используй когда пользователь сообщает об инциденте/падении на prod и нужен полный цикл реакции с артефактами."
+argument-hint: "[описание | TASK_ID | URL алерта]"
 ---
 
 # Incident — реакция на production инцидент
 
-Структурированный workflow для расследования и устранения production инцидента. Собирает данные из всех систем, строит timeline, находит root cause, координирует hotfix.
+Структурированный workflow для расследования и устранения production-инцидента: быстрая оценка масштаба, сбор данных, timeline, root cause, hotfix, post-mortem.
 
-Подключения из `.claude/memory/project-index.md` и `~/.claude/memory/infra-{group}.md`.
+Подключения — из `project-index.md` в auto-memory проекта и `~/.claude/memory/infra-{group}.md`. `{prod_branch}` — ветка production из секции «Ветвление» infra-файла (обычно `master`).
 
 ## Использование
 
@@ -17,43 +18,46 @@ description: "Incident — реакция на production-инцидент: сб
 /incident PLF-900
 ```
 
-Можно передать:
-- Описание проблемы (свободный текст)
-- ID задачи из YouTrack (если уже заведена)
-- URL из Sentry / Grafana alert
+Можно передать описание проблемы, ID задачи в YouTrack (если уже заведена) или URL из Sentry / Grafana alert.
 
 ## Flow
 
 ```
-TRIAGE → GATHER → TIMELINE → ROOT CAUSE → ⏸ HITL → MITIGATE → ⏸ HITL → POSTMORTEM
+TRIAGE → GATHER → TIMELINE → ROOT CAUSE → ⏸ HITL → MITIGATE → ⏸ HITL → POSTMORTEM → ⏸ HITL
 ```
+
+⏸ HITL — вопрос пользователю через AskUserQuestion с перечисленными вариантами.
 
 ---
 
 ### 1. TRIAGE — оценка масштаба
 
-Быстрая оценка (параллельно, <2 минут):
+Быстрая оценка, запросы параллельно, в пределах пары минут:
 
 ```bash
 # Sentry: всплеск ошибок за последний час
 pcurl @{sentry_profile} 'https://{sentry_host}/api/0/organizations/{org}/issues/?query=is:unresolved+project:{sentry_slug}&sort=freq&statsPeriod=1h&limit=10' -s
 
-# Prometheus: error rate и latency
+# Prometheus: доля HTTP 5xx
 pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G \
-  --data-urlencode 'query=rate(app_http_response_count_total{job="{job}",code=~"5.."}[5m])'
+  --data-urlencode 'query=sum(rate(app_http_requests_total{job="{job}",code=~"5.."}[5m])) / sum(rate(app_http_requests_total{job="{job}"}[5m]))'
 
+# Prometheus: доля ошибок RPC
 pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G \
-  --data-urlencode 'query=histogram_quantile(0.99, rate(app_http_response_time_seconds_bucket{job="{job}"}[5m]))'
+  --data-urlencode 'query=sum(rate(app_rpc_error_requests_total{job="{job}"}[5m])) / sum(rate(app_rpc_responses_duration_seconds_count{job="{job}"}[5m]))'
+
+# Prometheus: средняя latency RPC по методам
+pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G \
+  --data-urlencode 'query=sum(rate(app_rpc_responses_duration_seconds_sum{job="{job}"}[5m])) by (method) / sum(rate(app_rpc_responses_duration_seconds_count{job="{job}"}[5m])) by (method)'
+
+# Жив ли сервис (/status снаружи недоступен)
+pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G --data-urlencode 'query=up{job="{job}"}'
 
 # Nomad: статус аллокаций
 pcurl @{nomad_profile} 'https://{nomad_host}/v1/job/{nomad_job}/allocations' -s
-
-# API: up check (через Prometheus, /status недоступен снаружи)
-pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G \
-  --data-urlencode 'query=up{job="{job}"}'
 ```
 
-Определить severity:
+Severity:
 
 | Severity | Критерии | Действия |
 |----------|----------|----------|
@@ -63,84 +67,30 @@ pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G \
 
 ### 2. GATHER — сбор данных
 
-Глубокий сбор по всем источникам (параллельно):
+Основной сбор — через `/investigate`: передай симптом, период инцидента и сервис. Он проверит Sentry (с stacktrace top-issues), Prometheus, Loki, Nomad, Kibana, Grafana annotations, зависимые сервисы и вернёт отчёт.
 
-#### Sentry — ошибки и stacktrace
+Параллельно собери то, что нужно именно для инцидента:
+
 ```bash
-# Top issues за период инцидента
-pcurl @{sentry_profile} 'https://{sentry_host}/api/0/organizations/{org}/issues/?query=is:unresolved+project:{sentry_slug}&sort=freq&statsPeriod=1h&limit=10' -s
-
-# Детали топ issue (stacktrace, tags, affected users)
-pcurl @{sentry_profile} 'https://{sentry_host}/api/0/issues/{issue_id}/events/latest/' -s
-
-# Release и commit
-pcurl @{sentry_profile} 'https://{sentry_host}/api/0/issues/{issue_id}/' -s
-```
-
-#### Prometheus — метрики
-```bash
-# Error rate за последние 2 часа (range query)
-pcurl @{prom_profile} 'https://{prom_host}/api/v1/query_range' -s -G \
-  --data-urlencode 'query=rate(app_http_response_count_total{job="{job}",code=~"5.."}[1m])' \
-  --data-urlencode 'start={2h_ago_rfc3339}' \
-  --data-urlencode 'end={now_rfc3339}' \
-  --data-urlencode 'step=60'
-
-# Latency p99
-pcurl @{prom_profile} 'https://{prom_host}/api/v1/query_range' -s -G \
-  --data-urlencode 'query=histogram_quantile(0.99, rate(app_http_response_time_seconds_bucket{job="{job}"}[1m]))' \
-  --data-urlencode 'start={2h_ago_rfc3339}' \
-  --data-urlencode 'end={now_rfc3339}' \
-  --data-urlencode 'step=60'
-
-# DB connections / goroutines / memory
-pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G \
-  --data-urlencode 'query=app_db_open_connections{job="{job}"}'
-
-pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G \
-  --data-urlencode 'query=go_goroutines{job="{job}"}'
-
-pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G \
-  --data-urlencode 'query=go_memstats_alloc_bytes{job="{job}"}'
-```
-
-#### Loki — логи
-```bash
-# Ошибки за последний час (через Grafana proxy)
-pcurl @{grafana_profile} 'https://{grafana_host}/api/datasources/uid/{loki_uid}/resources/query_range' -s -G \
-  --data-urlencode 'query={service_name="{service_name}"} |= "error" | logfmt' \
-  --data-urlencode 'start={1h_ago_ns}' \
-  --data-urlencode 'end={now_ns}' \
-  --data-urlencode 'limit=100'
-```
-
-#### Nomad — деплой и аллокации
-```bash
-# Последние деплои
+# Nomad: последние деплои
 pcurl @{nomad_profile} 'https://{nomad_host}/v1/job/{nomad_job}/deployments' -s
 
-# Статус аллокаций (restarts, failed)
-pcurl @{nomad_profile} 'https://{nomad_host}/v1/job/{nomad_job}/allocations' -s
+# GitLab: последние pipeline на production-ветке
+pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/pipelines?ref={prod_branch}&per_page=3&order_by=id&sort=desc' -s
+
+# Sentry: release и commit задеплоенной версии
+pcurl @{sentry_profile} 'https://{sentry_host}/api/0/projects/{org}/{sentry_slug}/releases/?per_page=3' -s
 ```
 
-#### Git — последние изменения
+Что изменилось в последнем деплое — по коммитам задеплоенных релизов, а не по HEAD:
+
 ```bash
-# Последние коммиты в production ветке
-git log --oneline -20 origin/master
-
-# Что менялось в последнем деплое
-git diff HEAD~5..HEAD --stat
+git fetch origin {prod_branch} --quiet
+git log --oneline {prev_release_commit}..{release_commit}
+git diff {prev_release_commit}..{release_commit} --stat
 ```
 
-#### GitLab — последний pipeline
-```bash
-# Последний pipeline на master
-pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/pipelines?ref=master&per_page=3&order_by=id&sort=desc' -s
-```
-
-### 3. TIMELINE — построение хронологии
-
-На основе собранных данных построить timeline:
+### 3. TIMELINE — хронология
 
 ```markdown
 ## Timeline
@@ -154,82 +104,63 @@ pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/pipelines
 | {time} | — | Инцидент обнаружен |
 ```
 
-Найти **trigger event** — что изменилось непосредственно перед началом ошибок:
-- Деплой новой версии?
-- Изменение конфигурации?
-- Рост нагрузки?
-- Падение зависимости (другой сервис, БД)?
+Найди **trigger event** — что изменилось непосредственно перед началом ошибок: деплой, изменение конфигурации, рост нагрузки, падение зависимости (другой сервис, БД).
 
-### 4. ROOT CAUSE — определение причины
+### 4. ROOT CAUSE — причина
 
-На основе timeline и данных определить:
-- **Что сломалось** — конкретный компонент, метод, запрос
-- **Почему сломалось** — причина (баг в коде, конфиг, инфра, зависимость)
+- **Что сломалось** — компонент, метод, запрос
+- **Почему** — баг в коде, конфиг, инфраструктура, зависимость
 - **Когда началось** — точное время и trigger
-- **Масштаб** — сколько пользователей/запросов затронуто
+- **Масштаб** — сколько пользователей и запросов затронуто
 
-Если причина в коде — найти конкретный коммит:
-```bash
-# Сравнить текущую версию с предыдущей
-git log --oneline {prev_tag}..{current_tag}
-
-# Blame на проблемный файл
-git log --oneline -5 -- {file}
-```
+Если причина в коде — найди коммит в диапазоне релизов из шага 2 (`git log --oneline -5 -- {file}` по проблемному файлу).
 
 ### ⏸ HITL: Утверждение диагноза
 
-Показать пользователю:
-- **Severity:** P1/P2/P3
-- **Timeline** (таблица)
-- **Root cause** (описание)
-- **Trigger:** {что вызвало}
-- **Impact:** {масштаб}
-
-Предложить действие:
-- **Hotfix** — исправить через `/solve` (создать задачу если нет)
-- **Rollback** — откатить деплой (пользователь делает сам)
+Показать severity, timeline, root cause, trigger и impact. Предложить действие:
+- **Hotfix** — исправить через `/solve` (создать задачу, если её нет)
+- **Rollback** — откатить деплой (делает пользователь)
 - **Config fix** — изменить конфигурацию
 - **Wait** — проблема в зависимости, мониторить
 
 ### 5. MITIGATE — устранение
 
-В зависимости от решения:
+#### Hotfix через /solve
 
-#### Hotfix через /solve:
-1. Создать задачу в YouTrack (если не существует):
+1. Создать задачу в YouTrack, если её нет (описание многострочное — JSON через jq):
    ```bash
-   pcurl @{yt_profile} 'https://{yt_host}/api/issues' -s -X POST \
+   pcurl @{yt_profile} 'https://{yt_host}/api/issues?fields=idReadable' -s -X POST \
      -H 'Content-Type: application/json' \
-     -d '{"project":{"id":"{project_id}"},"summary":"[INCIDENT] {summary}","description":"{root_cause_description}"}'
+     -d "$(jq -n --arg p '{project_id}' --arg s "[INCIDENT] $SUMMARY" --arg d "$ROOT_CAUSE" \
+           '{project: {id: $p}, summary: $s, description: $d}')"
    ```
-2. Запустить `/solve {TASK_ID}` — пройти полный цикл
-3. После деплоя — проверить что метрики вернулись в норму
+2. `/solve {TASK_ID}` — полный цикл, включая /go-review, даже под давлением.
+3. После деплоя — проверить, что метрики вернулись к baseline.
 
-#### Проверка после fix:
+#### Проверка после fix
+
 ```bash
-# Error rate должен вернуться к baseline
+# Доля 5xx должна вернуться к baseline
 pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G \
-  --data-urlencode 'query=rate(app_http_response_count_total{job="{job}",code=~"5.."}[5m])'
+  --data-urlencode 'query=sum(rate(app_http_requests_total{job="{job}",code=~"5.."}[5m])) / sum(rate(app_http_requests_total{job="{job}"}[5m]))'
 
-# Sentry: issue resolved
-pcurl @{sentry_profile} 'https://{sentry_host}/api/0/issues/{issue_id}/' -s -X PUT \
-  -H 'Content-Type: application/json' \
-  -d '{"status": "resolved"}'
+# Sentry: появляются ли новые события по issue
+pcurl @{sentry_profile} 'https://{sentry_host}/api/0/issues/{issue_id}/' -s
 ```
 
 ### ⏸ HITL: Подтверждение устранения
 
-Показать:
-- Метрики до/после
-- Sentry: issue resolved?
-- API: healthcheck OK?
+Показать метрики до/после, состояние issue в Sentry и healthcheck API. Пользователь подтверждает, что инцидент закрыт.
 
-Пользователь подтверждает что инцидент закрыт.
+После подтверждения — перевести issue в Sentry в resolved:
+```bash
+pcurl @{sentry_profile} 'https://{sentry_host}/api/0/issues/{issue_id}/' -s -X PUT \
+  -H 'Content-Type: application/json' -d '{"status": "resolved"}'
+```
 
 ### 6. POSTMORTEM — документирование
 
-Сохранить `docs/llm/incidents/{date}-{slug}.md`:
+Сохранить `docs/llm/incidents/{YYYY-MM-DD}-{slug}/postmortem.md` (рядом с `report.md` от /investigate):
 
 ```markdown
 # Incident: {summary}
@@ -264,7 +195,7 @@ pcurl @{sentry_profile} 'https://{sentry_host}/api/0/issues/{issue_id}/' -s -X P
 
 ## Metrics
 - Error rate: {before} → {during} → {after}
-- Latency p99: {before} → {during} → {after}
+- Latency: {before} → {during} → {after}
 
 ## Lessons Learned
 ### What went well
@@ -281,18 +212,17 @@ pcurl @{sentry_profile} 'https://{sentry_host}/api/0/issues/{issue_id}/' -s -X P
 
 ### ⏸ HITL: Утверждение post-mortem
 
-Показать post-mortem пользователю. Пользователь может:
 - **Утвердить** — сохранить файл
 - **Дополнить** — добавить lessons learned, action items
-- **Пропустить** — не создавать post-mortem (P3 инциденты)
+- **Пропустить** — не создавать post-mortem (P3)
 
 ---
 
 ## Правила
 
-- **Скорость важнее полноты** — на этапе TRIAGE собирать быстро, детали потом
-- Не тратить время на post-mortem пока инцидент не устранён
-- Hotfix через `/solve` — полный цикл, включая /go-review (даже под давлением)
-- Если причина не в нашем коде (зависимость, инфра) — зафиксировать и эскалировать
-- Post-mortem — без blame, фокус на процессах и предотвращении
-- Action items должны быть конкретными и иметь owner
+- На TRIAGE скорость важнее полноты — детали на GATHER
+- Post-mortem — только после устранения инцидента
+- Hotfix через `/solve` — полный цикл, включая /go-review
+- Причина не в нашем коде (зависимость, инфраструктура) — зафиксировать и эскалировать
+- Post-mortem без поиска виноватых: фокус на процессах и предотвращении
+- Action items конкретные и с owner

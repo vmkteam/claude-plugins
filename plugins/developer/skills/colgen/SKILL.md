@@ -74,6 +74,19 @@ Docs: https://vmkteam.dev/colgen/
 
 Рекомендация: один `colgen` на пакет, директивы в `collection.go`.
 
+### Ручные сборки — сигнал применить colgen
+
+Если в коде собирается вручную то, что генерирует colgen, — замени на метод коллекции, а не пиши ещё один цикл:
+
+| Ручная сборка | Метод colgen |
+|---|---|
+| цикл с `map[int]bool` для уникальных id поля | `Unique<Field>s()` |
+| `map[id]entity` из списка | `Index()` / `IndexBy<Field>()` |
+| `[]int` id из поля элементов списка | `<Field>s()` / `IDs()` |
+| `map[key][]entity` | `Group<Field>()` |
+
+Нужного метода нет — добавь директиву в `collection.go` и `make generate`.
+
 ## Inline-сниппеты
 
 `//colgen@<Name>(<pkg>)` заменяется прямо в файле на тип + конструктор.

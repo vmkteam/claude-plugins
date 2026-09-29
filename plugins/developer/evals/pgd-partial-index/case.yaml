@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: pgd-partial-index
+description: >
+  Справочный скилл /pgd (с paths-фильтром на *.pgd): индекс кладётся на уровень <schema>,
+  выражение и WHERE — в CDATA.
+tags: [reference]
+context:
+  scaffold_script: fixture.sh

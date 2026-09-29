@@ -1,13 +1,14 @@
 ---
 name: mr-review
 description: "MR Review — ревью чужого Merge Request с публикацией threads в GitLab. Используй когда просят отревьюить MR коллеги по ссылке или ID (fetch diff → /go-review → публикация замечаний)."
+argument-hint: "<mr_iid> [--focus security|performance|...]"
 ---
 
 # MR Review — ревью чужого Merge Request
 
 Полный цикл code review для MR в GitLab: получить diff, проанализировать код, опубликовать замечания как inline threads.
 
-Подключения из `.claude/memory/project-index.md` и `~/.claude/memory/infra-{group}.md`.
+Подключения — из `project-index.md` в auto-memory проекта и `~/.claude/memory/infra-{group}.md`.
 
 ## Использование
 
@@ -60,7 +61,7 @@ pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/merge_req
 
 ### 3. REVIEW — анализ кода
 
-Запустить `/go-review` на изменения MR — 6 ревьюеров:
+Запустить `/go-review` в режиме MR: изменения — diff из шага 1 (или `git diff origin/{target_branch}...origin/{source_branch}`), preflight локальной базы не нужен. 6 ревьюеров:
 1. **Common** — соответствие задаче, полнота
 2. **Architecture** (Dave Cheney) — структура, зависимости
 3. **Code** (Rob Pike) — простота, читаемость
@@ -68,7 +69,7 @@ pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/merge_req
 5. **Tests** (Mitchell Hashimoto) — покрытие, качество тестов
 6. **Operability** (Peter Bourgon) — логирование, метрики, graceful degradation
 
-Если указан `--focus` — дать повышенный приоритет этому аспекту.
+Если указан `--focus` — углубиться в этот аспект, не отбрасывая находки по остальным.
 
 Дополнительные проверки (сверх /go-review):
 - **Сгенерированные файлы** (`*_zenrpc.go`, `*_colgen.go`, `*_mfd.go`) — пропустить, но убедиться что они обновлены
@@ -89,12 +90,16 @@ pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/merge_req
 
 ### Verdict: {Approve / Request Changes / Comment}
 
+### Acceptance
+- met: {критерий из задачи}
+- unmet: {критерий} — {почему}
+
 ### Findings
-| # | Severity | File | Line | Issue |
-|---|----------|------|------|-------|
-| 1 | blocker | {file} | {line} | {description} |
-| 2 | major | {file} | {line} | {description} |
-| 3 | minor | {file} | {line} | {description} |
+| # | Severity | Confidence | File | Line | Issue |
+|---|----------|------------|------|------|-------|
+| 1 | blocker | high | {file} | {line} | {description} |
+| 2 | major | medium | {file} | {line} | {description} |
+| 3 | minor | low | {file} | {line} | {description} |
 
 ### What's good
 - {positive finding 1}
@@ -111,7 +116,7 @@ pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/merge_req
 - Описание проблемы
 - Предложение исправления (с примером кода если уместно)
 
-Замечания `nit` — включить только в summary, не создавать отдельные threads.
+Замечания `nit` — только в summary, без отдельных threads. Находки с уверенностью `low` пометь в тексте замечания как предположение — пользователь решит на HITL, публиковать ли их.
 
 ### ⏸ HITL: Утверждение ревью
 
@@ -128,29 +133,22 @@ pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/merge_req
 
 ### 5. PUBLISH — опубликовать в GitLab
 
+Тексты замечаний — многострочный markdown с кавычками и кодом, поэтому JSON собирается через jq, а не руками.
+
 #### Summary comment:
 ```bash
 pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/merge_requests/{mr_iid}/notes' -s -X POST \
   -H 'Content-Type: application/json' \
-  -d '{"body": "{summary_markdown}"}'
+  -d "$(jq -n --arg body "$SUMMARY" '{body: $body}')"
 ```
 
 #### Inline threads (для каждого замечания):
 ```bash
 pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/merge_requests/{mr_iid}/discussions' -s -X POST \
   -H 'Content-Type: application/json' \
-  -d '{
-    "body": "{comment_text}",
-    "position": {
-      "base_sha": "{base_sha}",
-      "start_sha": "{start_sha}",
-      "head_sha": "{head_sha}",
-      "position_type": "text",
-      "old_path": "{file_path}",
-      "new_path": "{file_path}",
-      "new_line": {line_number}
-    }
-  }'
+  -d "$(jq -n --arg body "$COMMENT" --arg path '{file_path}' --argjson line {line_number} \
+        --arg base '{base_sha}' --arg start '{start_sha}' --arg head '{head_sha}' \
+        '{body: $body, position: {position_type: "text", base_sha: $base, start_sha: $start, head_sha: $head, old_path: $path, new_path: $path, new_line: $line}}')"
 ```
 
 > `base_sha`, `start_sha`, `head_sha` из `diff_refs` (шаг 1).

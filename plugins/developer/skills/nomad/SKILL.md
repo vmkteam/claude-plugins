@@ -1,6 +1,7 @@
 ---
 name: nomad
 description: "Nomad — оркестрация: jobs, allocations, метрики, логи. Используй при правке *.nomad.hcl, разборе упавшей аллокации, просмотре логов job или проверке статуса деплоя."
+allowed-tools: "Bash(pcurl:*)"
 ---
 
 # Nomad — оркестрация сервисов

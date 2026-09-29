@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: testing-scenarios-testify
+description: >
+  /testing: сценарии Given/When/Then из spec превращаются в тесты пакета на testify —
+  префикс TestDB, подтест на сценарий, table-driven для Scenario Outline, фабрики pkg/db/test.
+tags: [testing]
+context:
+  scaffold_script: fixture.sh

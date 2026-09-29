@@ -1,12 +1,14 @@
 ---
 name: errors
 description: "Errors — дайджест ошибок за период из Sentry, Prometheus, Loki, Kibana. Используй когда просят отчёт по ошибкам за сутки/неделю, ретроспективу, или сводку по инциденту."
+argument-hint: "[период: 1h|24h|7d|14d|30d] [сервис]"
+allowed-tools: "Bash(pcurl:*)"
 ---
 
 # /errors — Дайджест ошибок
 
 Сводка по ошибкам за период — быстрый обзор "что ломается". Не расследование (для этого /investigate).
-Конкретные подключения из `.claude/memory/project-index.md`.
+Подключения — из `project-index.md` в auto-memory проекта и `~/.claude/memory/infra-{group}.md`.
 
 ## Триггер
 
@@ -34,7 +36,7 @@ pcurl @{sentry_profile} 'https://{sentry_host}/api/0/organizations/{org}/issues/
 
 ### 2. Prometheus: RPC и HTTP errors (скилл /prometheus)
 
-ВАЖНО: метрика `app_rpc_error_requests_total` (НЕ app_rpc_request_total).
+Ошибки RPC считаются по `app_rpc_error_requests_total` — метрики `app_rpc_request_total` нет.
 
 ```bash
 # Top RPC ошибки по методу

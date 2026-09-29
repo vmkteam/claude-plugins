@@ -70,7 +70,7 @@ func (s OrderService) GetByID(ctx context.Context, id int) (*Order, error) {
     user := UserFromContext(ctx)
     order, err := s.repo.OrderByID(ctx, id)
     if err != nil {
-        return nil, InternalError(err)
+        return nil, newInternalError(err)
     }
     if order == nil {
         return nil, ErrNotFound
@@ -95,29 +95,30 @@ if ns == NSAuth && method == RPC.AuthService.Login {
 
 ## Error Information Leakage
 
-**Плохо** — внутренняя ошибка утекает клиенту:
-```go
-// zenrpc.NewError передаёт err.Error() клиенту в data
-return nil, zenrpc.NewError(500, err)
-// Клиент увидит: {"error":{"code":500,"message":"pq: relation \"orders\" does not exist"}}
-```
+`zenrpc.NewError(code, err)` кладёт `err.Error()` в `message` ответа. Для кода 500 (и отрицательных) это безопасно только благодаря middleware: `zm.WithErrorSLog` (legacy — `zm.WithErrorLogger`) логирует такую ошибку, отправляет её в Sentry и заменяет `message` на `"Internal error"`. Для остальных кодов маскировки нет.
 
-**Хорошо** — generic message клиенту, детали в Sentry:
-```go
-// zenrpc.NewStringError — клиент видит только message
-return nil, zenrpc.NewStringError(500, "internal error")
-// Клиент увидит: {"error":{"code":500,"message":"internal error"}}
-// Настоящая ошибка уйдёт в Sentry через WithSentry middleware
-```
-
-**Хелпер** — err в Sentry, generic клиенту:
+**Хорошо** — внутренняя ошибка: причина уходит в Sentry, клиент видит `"Internal error"`:
 ```go
 func newInternalError(err error) *zenrpc.Error {
-    return zenrpc.NewError(500, err)
-    // WithErrorSLog middleware залогирует и отправит в Sentry
-    // Клиент получит code=500 без деталей
+    return zenrpc.NewError(http.StatusInternalServerError, err)
 }
+
+return nil, newInternalError(err)
 ```
+Работает, только если `zm.WithErrorSLog` есть в `rpc.Use(...)` в `server.go` — без него клиент получит текст ошибки.
+
+**Хорошо** — клиентская ошибка с фиксированным текстом:
+```go
+var ErrNotFound = zenrpc.NewStringError(http.StatusNotFound, "not found")
+```
+
+**Плохо** — `NewError` с кодом 4xx: текст внутренней ошибки уходит клиенту как есть:
+```go
+return nil, zenrpc.NewError(http.StatusBadRequest, err)
+// Клиент увидит: {"error":{"code":400,"message":"pq: relation \"orders\" does not exist"}}
+```
+
+**Плохо** — `zenrpc.NewStringError(500, "internal error")` вместо `newInternalError(err)`: клиенту безопасно, но в Sentry уходит строка без причины, и диагностировать нечем.
 
 ## Sensitive Data in Logs
 
@@ -139,7 +140,7 @@ zenrpc-middleware (`WithSLog`, `WithAPILogger`) логирует парамет�
 | **Auth** | Whitelist методов минимальный |
 | **Authz** | Проверка ownership/прав внутри методов (не только middleware) |
 | **Validation** | Все входы через `go-playground/validator`, max длины строк |
-| **Errors** | `NewStringError` для клиента, `NewError` только через middleware |
+| **Errors** | 4xx — `NewStringError` с фиксированным текстом; 500 — `newInternalError(err)`, и в цепочке middleware есть `zm.WithErrorSLog` |
 | **Logging** | Пароли/токены не в параметрах логируемых методов |
 | **Secrets** | `cfg/local.toml` в `.gitignore`, нет hardcoded credentials |
 | **CORS** | Ограничен в production |

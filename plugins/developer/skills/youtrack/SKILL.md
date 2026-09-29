@@ -63,8 +63,10 @@ pcurl @{profile} 'https://{host}/api/issues' -s -X POST \
 ```bash
 pcurl @{profile} 'https://{host}/api/issues/{idReadable}/comments' -s -X POST \
   -H 'Content-Type: application/json' \
-  -d '{"text":"{comment_text}"}'
+  -d "$(jq -n --arg t "$TEXT" '{text: $t}')"
 ```
+
+> Многострочный текст с кавычками и кодом (описания, комментарии) вставляй в JSON через `jq -n --arg`, а не подстановкой в строку — иначе JSON ломается. Для однострочных значений достаточно строки как в примерах ниже.
 
 ### Обновить issue
 
@@ -76,7 +78,7 @@ pcurl @{profile} 'https://{host}/api/issues/{idReadable}' -s -X POST \
 
 ## Query syntax
 
-> **ВАЖНО:** Поле статуса может называться по-разному: `state`, `Stage`, `Status`. Реальное имя и значения определяются при `/onboard` и хранятся в `project-index.md` (state_field, state_open, state_done).
+> Поле статуса может называться по-разному: `state`, `Stage`, `Status`. Реальное имя и значения определяются при `/onboard` и хранятся в `project-index.md` (state_field, state_open, state_done).
 
 | Фильтр | Пример |
 |---------|--------|

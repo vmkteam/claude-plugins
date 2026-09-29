@@ -90,6 +90,8 @@ pcurl @{gl_profile} 'https://{gl_host}/api/v4/projects/{gl_project_id}/merge_req
 
 > `base_sha`, `start_sha`, `head_sha` берутся из `diff_refs` в деталях MR.
 
+> `body` — многострочный markdown: собирай JSON через jq, например `-d "$(jq -n --arg body "$TEXT" '{body: $body}')"`. Пример для inline-треда с `position` — в /mr-review.
+
 ### Создать общий тред (не привязанный к строке)
 
 ```bash
