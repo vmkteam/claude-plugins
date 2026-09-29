@@ -1,130 +1,69 @@
 ---
 name: investigate
 description: "Investigate — расследование проблемы по всем data sources (Sentry, Prometheus, Loki, Kibana, Nomad). Используй когда есть симптом (ошибка, деградация, аномалия), но причина неизвестна, а полноценный /incident избыточен."
+argument-hint: "[описание проблемы, период, сервис]"
+allowed-tools: "Bash(pcurl:*)"
 ---
 
-# /investigate — Расследование инцидента
+# /investigate — расследование проблемы
 
-Полное расследование инцидента. Задействует все доступные data source скиллы по стадии проекта.
-Конкретные подключения из `.claude/memory/project-index.md`.
+Найти причину симптома и подтвердить её данными из всех доступных источников. Какие источники есть — зависит от стадии проекта; подключения — из `project-index.md` в auto-memory проекта и `~/.claude/memory/infra-{group}.md`.
 
-## Триггер
+Примеры запросов: «API тормозит», «500 ошибки на /rpc/», «у пользователя не работает X», «что-то сломалось после деплоя».
 
-- "API тормозит"
-- "500 ошибки на /rpc/"
-- "у пользователя не работает X"
-
-> Для полного workflow production-инцидента с HITL, mitigation и post-mortem — использовать `/incident`.
-- "что-то сломалось после деплоя"
+> Для полного workflow production-инцидента с HITL, mitigation и post-mortem — `/incident`.
 
 ## Входные данные
 
 - Описание проблемы (свободный текст)
-- Временной диапазон (опционально, default: 1h)
-- Проект/сервис (опционально, default: все)
+- Период — по умолчанию последний час
+- Сервис — по умолчанию все из project-index
 
-## Алгоритм
+## Как расследовать
 
-### 1. Определить scope
+Цель — гипотеза о root cause, подтверждённая данными, либо честный вывод, что данных не хватает. Остановись, когда причина подтверждена двумя независимыми источниками (например, всплеск в Sentry и рост error rate в Prometheus в то же время) или когда все доступные источники проверены.
 
-Из описания извлечь:
-- **Время:** когда началось? default `statsPeriod=1h`
-- **Сервис:** какой именно? Если неизвестно — все из project-index
-- **Endpoint/метод:** конкретный RPC method или URL?
-- **Ключевые слова:** для поиска в Sentry и логах
+1. **Scope.** Из описания извлеки время начала, сервис, конкретный RPC-метод или URL и ключевые слова для поиска.
+2. **Жив ли сервис** (/api-health) — первым делом:
+   ```bash
+   pcurl @{api_prod_profile} https://{api_prod_host}/{rpc_endpoint} -s -L -X POST \
+     -H 'Content-Type: application/json' \
+     -d '{"jsonrpc":"2.0","method":"{known_method}","params":{},"id":1}' \
+     -w '\nHTTP %{http_code} | Total: %{time_total}s | TTFB: %{time_starttransfer}s\n'
+   ```
+   Не отвечает — сразу к Nomad.
+3. **Источники — параллельно.** Начни с одного-двух обзорных запросов к каждому и углубляйся туда, где есть сигнал. Источник без аномалий в отчёте — одной строкой.
+4. **Деплои.** Сопоставь начало проблемы с деплоями (Sentry releases, Grafana annotations). Недавний деплой — посмотри, что в нём изменилось.
+5. **Код.** Есть гипотеза (stacktrace, подозрительный метод) — найди код локально и сверяй с задеплоенной версией (commit из Sentry release), а не с HEAD: `git diff {release_commit}..HEAD --stat`.
+6. **Отчёт** — сохрани в `docs/llm/incidents/{YYYY-MM-DD}-{slug}/report.md` и покажи. Если запись файлов недоступна (plan mode — например, вызов из ANALYZE в /solve), верни отчёт целиком текстом: его сохранит вызывающий скилл.
 
-### 2. Проверить здоровье (скилл /api-health)
+## Источники
 
-Первым делом — жив ли сервис?
+**Sentry** (/sentry): unresolved issues за период по частоте; новые issues (firstSeen в периоде); поиск по ключевым словам. Для top-3 — latest event (stacktrace, breadcrumbs).
 
-```bash
-pcurl @{api_prod_profile} https://{api_prod_host}/{rpc_endpoint} -s -L -X POST \
-  -H 'Content-Type: application/json' \
-  -d '{"jsonrpc":"2.0","method":"{known_method}","params":{},"id":1}' \
-  -w '\nHTTP %{http_code} | Total: %{time_total}s | TTFB: %{time_starttransfer}s\n'
-```
+**Prometheus** (/prometheus): RPC error rate и HTTP 5xx; latency по методам (средняя, top медленных); RPS в сравнении с обычным уровнем; saturation — goroutines, память, DB connections.
 
-Если не отвечает — сразу проверять Nomad (шаг 6).
+**Loki** (/loki): ошибки сервиса (`| json | level="ERROR"`), логи конкретного метода, медленные запросы (`durationMS > 500`), записи с ошибкой (`err!="<nil>"`).
 
-### 3. Sentry: ошибки (скилл /sentry)
+**Nomad** (/nomad): инфраструктурные причины — OOM kills (`increase(nomad_client_allocs_oom_killed[{period}])`), рестарты (`increase(nomad_client_allocs_restart[{period}])`), blocked allocations, ресурсы нод.
 
-Параллельно:
-- Unresolved issues за период, по частоте
-- Новые issues (firstSeen в периоде)
-- По ключевым словам из описания проблемы
+**Kibana / OpenSearch** (/kibana, если есть): 5xx и медленные запросы (`requestTime > 1`) в nginx-access, записи nginx-error.
 
-Top-3 issues → получить latest event (stacktrace, breadcrumbs).
-
-### 4. Prometheus: метрики (скилл /prometheus)
-
-Параллельно:
-- RPC error rate и HTTP 5xx
-- Latency (avg по методу, top-10 медленных)
-- Throughput (RPS) — сравнить с обычным уровнем
-- Saturation: goroutines, memory, DB connections
-
-### 5. Loki: приложенческие логи (скилл /loki)
-
-- Ошибки по сервису (`level="ERROR"`)
-- По конкретному методу если известен
-- Медленные запросы (`durationMS > 500`)
-- Ошибки с текстом (`err!="<nil>"`)
-
-### 6. Nomad: оркестрация (скилл /nomad)
-
-Проверить — не инфраструктурная ли причина:
-- OOM kills (`increase(nomad_client_allocs_oom_killed[{period}])`)
-- Restarts (`increase(nomad_client_allocs_restart[{period}])`)
-- Blocked allocations
-- Node resources (CPU, memory)
-
-### 7. Kibana/OpenSearch: nginx логи (скилл /kibana)
-
-Если есть — проверить на уровне reverse proxy:
-- HTTP 5xx в nginx-access
-- Медленные запросы (`requestTime > 1`)
-- Ошибки в nginx-error
-
-### 8. Grafana: деплои и дашборды (скилл /grafana)
-
-- Annotations за период (деплои, инциденты)
-- Ссылки на дашборды для отчёта
-
+**Grafana** (/grafana): annotations за период (деплои, инциденты) и ссылки на дашборды:
 ```bash
 pcurl @{grafana_profile} 'https://{grafana_host}/api/annotations?from='$(date -v-{period} +%s)000'&to='$(date +%s)000'&limit=20' -s
 ```
 
-### 9. Зависимые сервисы
+**Зависимые сервисы** — из секции «Связанные сервисы» project-index: есть ли в тот же период ошибки в Sentry и рост error rate у них.
 
-Из project-index.md → секция "Связанные сервисы". Для каждого зависимого сервиса проверить:
-- Sentry: есть ли ошибки в зависимых сервисах в тот же период?
-- Prometheus: error rate зависимых
-
-### 10. YouTrack: существующие тикеты (скилл /youtrack)
-
-Проверить — может проблема уже известна:
+**YouTrack** (/youtrack): возможно, проблема уже известна:
 ```bash
 pcurl @{yt_profile} 'https://{yt_host}/api/issues?query=project:{PROJECT}+{keywords}&fields=idReadable,summary&$top=5' -s
 ```
 
-### 11. Проверить деплои
-
-Через Sentry releases и Grafana annotations:
-- Сопоставить время деплоя с началом проблемы
-- Если деплой недавний — посмотреть что изменилось
-
-### 12. Верификация по исходному коду
-
-Когда есть гипотеза (stacktrace, подозрительный метод):
-- Найти файл в локальных исходниках
-- **Сверять с задеплоенной версией** (Sentry release commit), не с HEAD
-- `git diff {release_commit}..HEAD --stat`
-
-### 13. Сформировать и сохранить отчёт
-
-Сохранить в `docs/llm/incidents/{YYYY-MM-DD}-{slug}/report.md`.
-
 ## Формат отчёта
+
+Секции для недоступных источников и источников без аномалий не раздувай — одна строка «проверено, аномалий нет» или «нет доступа».
 
 ```markdown
 ## Incident Report
@@ -132,6 +71,9 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues?query=project:{PROJECT}+{keywo
 **Время:** {start} — {end}
 **Severity:** Critical / High / Medium / Low
 **Affected:** {services}, {endpoints}
+
+### Root Cause
+{гипотеза и данные, которые её подтверждают; что осталось неподтверждённым}
 
 ### Timeline
 - HH:MM — Release {version} deployed
@@ -152,13 +94,8 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues?query=project:{PROJECT}+{keywo
 - Throughput: {current} RPS (обычно {baseline} RPS)
 - Goroutines: {current} | Memory: {current} | DB conns: {current}
 
-### Логи (Loki)
-- Errors: {count} за период
-- Top ошибки: {list}
-
-### Nginx (Kibana)
-- 5xx: {count} за период
-- Slow (>1s): {count}
+### Логи (Loki, Kibana)
+- {количество ошибок, top сообщений, 5xx и медленные запросы в nginx}
 
 ### Зависимые сервисы
 | Сервис | Sentry errors | Error rate |
@@ -166,26 +103,20 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues?query=project:{PROJECT}+{keywo
 
 ### Деплои
 - Последний деплой: {version} в {time}
-- Grafana annotations: {list}
-
-### Root Cause
-{hypothesis based on data}
 
 ### Ссылки
 - [Sentry issues]({url})
 - [Grafana dashboard]({url})
-- [YouTrack]({url}) (если найден существующий тикет)
+- [YouTrack]({url}) — если найден существующий тикет
 
 ### Рекомендации
 - {action items}
-- Создать тикет в YouTrack: {да/нет, какой проект}
+- Тикет в YouTrack: {нужен / уже есть {ID}}
 ```
 
 ## Правила
 
-- Шаги 2-10 выполнять **параллельно** где возможно
-- Не более 3-5 запросов к каждому источнику
-- Использовать только доступные системы по стадии проекта (из project-index)
-- Если данных мало — сказать об этом, не придумывать
-- Всегда **прямые ссылки** на дашборды и issues
-- Предложить создать тикет в YouTrack если проблема подтверждена и тикета нет
+- Используй только системы, доступные на стадии проекта (из project-index)
+- Данных мало — так и скажи, не додумывай
+- В отчёте — прямые ссылки на дашборды и issues
+- Проблема подтверждена, а тикета нет — предложи создать его в YouTrack

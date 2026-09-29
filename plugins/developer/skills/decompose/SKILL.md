@@ -1,12 +1,13 @@
 ---
 name: decompose
 description: "Decompose — исследование и декомпозиция User Story на подзадачи с созданием в YouTrack. Используй когда задача крупная, неконкретная или User Story — перед /solve."
+argument-hint: "<TASK_ID>"
 ---
 
 # /decompose — исследование и декомпозиция задачи
 
 Исследование User Story или крупной задачи, анализ кода, декомпозиция на подзадачи с созданием в YouTrack.
-Подключения к системам из `.claude/memory/project-index.md`.
+Подключения к системам — из `project-index.md` в auto-memory проекта и `~/.claude/memory/infra-{group}.md`.
 
 ## Использование
 
@@ -37,13 +38,13 @@ PREFLIGHT → FETCH → RESEARCH → ⏸ HITL → DECOMPOSE → ⏸ HITL → CRE
 Имя базовой ветки — из `project-index.md` (`base_branch`, по умолчанию `devel`).
 
 ```bash
-BASE={base_branch}
-git fetch origin $BASE --quiet
-LOCAL=$(git rev-parse $BASE 2>/dev/null || echo none)
-REMOTE=$(git rev-parse origin/$BASE)
+git fetch origin {base_branch} --quiet && git rev-list --left-right --count {base_branch}...origin/{base_branch}
 ```
 
-Если `LOCAL != REMOTE` — ⏸ HITL: **Обновить** (`git checkout $BASE && git pull --ff-only`, вернуться на исходную ветку) / **Продолжить** (на свой риск) / **Отмена**.
+Вывод `0	0` — база актуальна. Иначе ⏸ HITL через AskUserQuestion:
+- **Обновить** — на базовой ветке: `git pull --ff-only`; на другой ветке: `git fetch origin {base_branch}:{base_branch}`
+- **Продолжить** — на устаревшей базе, явно предупредив пользователя
+- **Отмена**
 
 ---
 
@@ -67,15 +68,15 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues/{TASK_ID}?fields=idReadable,su
 pcurl @{yt_profile} 'https://{yt_host}/api/issues?query=subtask+of:+{TASK_ID}&fields=idReadable,summary,customFields(name,value(name))&$top=30' -s
 ```
 
-Создать директорию: `mkdir -p docs/llm/tasks/{TASK_ID}/`
+Создать директорию: `mkdir -p docs/llm/tasks/{TASK_ID}/` — до plan mode, в нём файлы писать нельзя.
 
 ### 2. RESEARCH — глубокое исследование (plan mode)
 
-Войти в plan mode. Не писать код — только анализ.
+Войди в plan mode (EnterPlanMode): только чтение и анализ, код не меняется.
 
-#### 2a. Анализ кода (параллельно)
+#### 2a. Анализ кода
 
-Запустить агентов (subagent_type=Explore) для параллельного исследования:
+Что выяснить:
 
 - **Существующий код:** какие компоненты уже реализованы, какие отсутствуют
 - **Модель данных:** таблицы, FK, constraints, связи. Нужна ли миграция?
@@ -83,6 +84,8 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues?query=subtask+of:+{TASK_ID}&fi
 - **Зависимости:** межсервисные вызовы, внешние системы
 - **Тесты:** существующие тесты, покрытие
 - **Техдолг:** нужен ли рефакторинг перед реализацией US?
+
+Если направления независимы и широки (много пакетов или сервисов), их можно раздать Explore-агентам — по одному на направление, в одном сообщении. Если хватает нескольких чтений файлов и поисков — исследуй сам: каждый агент заново собирает контекст, и это дороже.
 
 #### 2b. Анализ требований
 
@@ -100,7 +103,9 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues?query=subtask+of:+{TASK_ID}&fi
 - Интеграции (внешние системы)
 - Порядок реализации
 
-**Артефакт:** Сохранить `docs/llm/tasks/{TASK_ID}/research.md`:
+Блокирующие вопросы задавай по ходу через AskUserQuestion — в plan mode это можно.
+
+**Артефакт:** research по шаблону ниже запиши в файл плана, который указал plan mode. После утверждения (ExitPlanMode) сохрани тот же текст в `docs/llm/tasks/{TASK_ID}/research.md`.
 
 ```markdown
 # {TASK_ID} — Research
@@ -130,6 +135,12 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues?query=subtask+of:+{TASK_ID}&fi
 |---|---|---|
 | {AC из US} | {как реализуем} | must/should/could |
 
+## Границы (out of scope)
+- {что осознанно не входит в US}
+
+## Edge cases
+- {ошибки, конкурентный доступ, граничные значения, переходы статусов}
+
 ## Зависимости между задачами
 - {TASK_A} блокирует {TASK_B}
 - Общие компоненты: {список}
@@ -148,14 +159,11 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues?query=subtask+of:+{TASK_ID}&fi
 
 ### ⏸ HITL: Обсуждение research
 
-Показать пользователю research.md. Обсудить:
-- Открытые вопросы
-- Решения по архитектуре
-- Приоритеты (must/should/could)
-- Зависимости и порядок реализации
+ExitPlanMode показывает research пользователю. Обсуждаются открытые вопросы, решения по архитектуре, приоритеты (must/should/could), зависимости и порядок реализации.
+- **Утвердил** — сохрани `research.md` и переходи к DECOMPOSE.
+- **Отклонил с замечаниями или ответами** — останься в plan mode, обнови research и снова вызови ExitPlanMode.
 
-Итеративно обновлять research.md по мере получения ответов.
-**Не переходить к декомпозиции, пока все блокирующие вопросы не закрыты.**
+К декомпозиции — только когда блокирующие вопросы закрыты.
 
 ### 3. DECOMPOSE — декомпозиция на подзадачи
 
@@ -174,21 +182,27 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues?query=subtask+of:+{TASK_ID}&fi
 
 **Формат подзадачи:**
 
-```markdown
+````markdown
 ### {N}. {service}: {краткое название}
 **SP:** {N} | **Приоритет:** {must/should/could} | **Блокирует:** {список или "—"}
 
 {Описание задачи с деталями реализации}
 
-**Acceptance criteria:**
-- [ ] {AC 1}
-- [ ] {AC 2}
+**Acceptance criteria** (Given/When/Then с конкретными данными):
+```gherkin
+Scenario: {happy path}
+  Given {исходное состояние}
+  When {действие}
+  Then {результат}
 
-**Как тестировать:**
-- {сценарий теста}
+Scenario: {ошибка или граничное значение}
+  ...
+```
 
 **Миграции:** {нет / описание}
-```
+````
+
+Перед показом перепроверь сценарии всех подзадач вместе. Покрыты happy path, альтернативные ветки, ошибки, граничные значения и конкурентный доступ, если он возможен; каждый edge case из research покрыт хотя бы одним сценарием; нет пропущенных статусов и переходов; данные конкретные, а не «корректные данные»; Then проверяется тестом, а не «тесты зелёные». Похожие сценарии сведи в Scenario Outline. Дыры закрой — дополни сценарии или research — и перепроверь добавленное. Итог покажи вместе с декомпозицией: сколько сценариев, какие дыры найдены и закрыты, какие вопросы остались открытыми.
 
 ### ⏸ HITL: Утверждение декомпозиции
 
@@ -200,16 +214,13 @@ pcurl @{yt_profile} 'https://{yt_host}/api/issues?query=subtask+of:+{TASK_ID}&fi
 
 ### 4. CREATE — создание в YouTrack
 
-После утверждения — создать задачи в YouTrack:
+После утверждения — создать задачи в YouTrack. Описание — многострочный markdown, поэтому JSON собирается через jq:
 
 ```bash
-pcurl @{yt_profile} 'https://{yt_host}/api/issues?fields=idReadable,summary' \
+pcurl @{yt_profile} 'https://{yt_host}/api/issues?fields=idReadable,summary' -s \
   -X POST -H 'Content-Type: application/json' \
-  -d '{
-    "project": {"id": "{project_id}"},
-    "summary": "{summary}",
-    "description": "{description}"
-  }' -s
+  -d "$(jq -n --arg p '{project_id}' --arg s "$SUMMARY" --arg d "$DESCRIPTION" \
+        '{project: {id: $p}, summary: $s, description: $d}')"
 ```
 
 Привязать как subtask к родительской US:
@@ -237,6 +248,7 @@ pcurl @{yt_profile} 'https://{yt_host}/api/commands' \
 ## Правила
 
 - **Никогда не создавать задачи без утверждения пользователя**
+- ⏸ HITL — вопрос через AskUserQuestion с перечисленными вариантами, для research — выход из plan mode (ExitPlanMode)
 - Все задачи привязываются к родительской US как subtasks
 - Каждая подзадача потом решается через `/solve`
 - Research в plan mode — не писать код

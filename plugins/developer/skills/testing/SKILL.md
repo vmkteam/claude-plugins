@@ -1,6 +1,6 @@
 ---
 name: testing
-description: "Testing — паттерны тестирования Go-сервисов: t.Run + testify, table-driven, реальная БД, без моков. Используй при написании новых тестов, правке существующих или настройке TestMain/test-short."
+description: "Testing — используй всегда, когда пишешь или правишь Go-тесты (*_test.go), в том числе по сценариям Given/When/Then из spec: фреймворк как в соседних файлах, префикс TestDB, фабрики pkg/db/test, реальная БД без моков. Также при настройке TestMain/test-short и когда тесты падают в gate, но проходят локально."
 ---
 
 # Testing — паттерны тестирования
@@ -9,11 +9,12 @@ description: "Testing — паттерны тестирования Go-серв�
 
 ## Принципы
 
-- **Канонический стиль** — `t.Run` + `testify/assert` + `testify/require`. Table-driven для множественных кейсов
-- **Legacy на goconvey** — не переписывай ради переписывания, но новые тесты в таких проектах тоже на `t.Run` + testify
+- **Фреймворк — как в соседних `*_test.go`** пакета: стили в одном пакете не смешивай. В новых пакетах и проектах — `t.Run` + `testify/assert` + `testify/require`, table-driven для множественных кейсов. Существующие goconvey-тесты не переписывай ради переписывания
 - **Без моков** — тестируем реальный транспорт, реальную базу
 - **TestDB префикс** — тесты с БД именуются `TestDB*`
 - **test-short** пропускает DB-тесты через regex `Test[^D][^B]`
+- **Покрытие** — happy path и ошибочные пути: пустой ввод, слишком длинный, граничные значения, отсутствующая запись, повторный вызов. Непокрытый ошибочный путь — дыра
+- **Инварианты** — если в задаче есть числовой или глобальный инвариант («≤ N», «суммарно», «во всех ветках»), первым пиши тест на худший случай (максимум полей, длины, количества) и убедись, что он падает на старом коде
 
 ## Makefile targets
 
@@ -109,6 +110,79 @@ func TestValidateLogin(t *testing.T) {
 }
 ```
 
+## Сценарии Given/When/Then → тесты
+
+Spec в /solve и подзадачи /decompose описывают поведение сценариями Given/When/Then. Это формат постановки, а не фреймворк: тест пишется в стиле пакета, по одному на сценарий.
+
+| Сценарий | Тест |
+|---|---|
+| `Scenario` | подтест `t.Run` с текстом сценария в имени — упавший тест сразу указывает на сценарий из spec |
+| `Given` | подготовка данных фабриками из `pkg/db/test` с конкретными значениями из сценария |
+| `When` | один вызов тестируемого метода |
+| `Then` | проверки `require` / `assert` |
+| `Scenario Outline` + `Examples` | table-driven: строка `Examples` — кейс |
+
+Сценарии из spec:
+
+```gherkin
+Scenario: владелец отменяет новый заказ
+  Given заказ пользователя в статусе New
+  When пользователь вызывает order.Cancel
+  Then статус заказа — Cancelled
+
+Scenario Outline: заказ в финальном статусе отменить нельзя
+  Given заказ пользователя в статусе <status>
+  When пользователь вызывает order.Cancel
+  Then ошибка ErrInvalidStatus
+  Examples:
+    | status    |
+    | Delivered |
+    | Cancelled |
+```
+
+Тест:
+
+```go
+func TestDBOrderCancel(t *testing.T) {
+    ctx := t.Context()
+    srv := NewOrderService(testDB)
+    repo := db.NewOrderRepo(testDB)
+
+    t.Run("владелец отменяет новый заказ", func(t *testing.T) {
+        order, clean := test.Order(t, testDB, &db.Order{StatusID: db.StatusNew})
+        defer clean()
+
+        _, err := srv.Cancel(withUser(ctx, order.UserID), order.ID) // withUser — хелпер проекта
+        require.NoError(t, err)
+
+        got, err := repo.OrderByID(ctx, order.ID)
+        require.NoError(t, err)
+        assert.Equal(t, db.StatusCancelled, got.StatusID)
+    })
+
+    t.Run("заказ в финальном статусе отменить нельзя", func(t *testing.T) {
+        cases := []struct {
+            name   string
+            status int
+        }{
+            {"Delivered", db.StatusDelivered},
+            {"Cancelled", db.StatusCancelled},
+        }
+        for _, tc := range cases {
+            t.Run(tc.name, func(t *testing.T) {
+                order, clean := test.Order(t, testDB, &db.Order{StatusID: tc.status})
+                defer clean()
+
+                _, err := srv.Cancel(withUser(ctx, order.UserID), order.ID)
+                require.ErrorIs(t, err, ErrInvalidStatus)
+            })
+        }
+    })
+}
+```
+
+В legacy-пакетах на goconvey тот же сценарий ложится на вложенные `Convey("Given ...")` → `Convey("When ...")` → `So(...)`.
+
 ## Setup — TestMain и тестовая БД
 
 ```go
@@ -166,10 +240,16 @@ make mfd-db-test
 - `WithFakeEntity()` — случайные данные
 - `NextID()` — атомарный инкремент для параллельных тестов
 
+## Герметичность
+
+Тест не должен полагаться на строки, которые уже лежат в БД: сиды из init.sql, «дефолтные» записи, данные других тестов. База пересоздаётся между прогонами, и сид может не доехать. Нужна запись — создай её в самом тесте (фабрикой или идемпотентным insert) и проверяй только свои данные.
+
+Тесты красные в gate, а локально зелёные — сначала воспроизведи окружение gate: `make db-test && make test`. Пересоздание БД обязательно: на тёплой базе битые сиды и схема не видны. Только после этого делай вывод о внешней причине.
+
 ## Правила
 
 1. `TestDB` префикс для всех тестов с базой — `test-short` их пропускает
 2. Нет моков — реальная БД, реальные сервисы
-3. `t.Run` подтесты + testify (`require` для fatal, `assert` для soft) — канонический стиль для нового кода
+3. Фреймворк — как в соседних файлах пакета; в новых пакетах — `t.Run` подтесты + testify (`require` для fatal, `assert` для soft)
 4. Table-driven когда множественные кейсы на одном поведении
 5. Каждый тест создаёт свои данные и чистит за собой

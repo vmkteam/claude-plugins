@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: testing-neighbour-goconvey
+description: >
+  /testing: в пакете, где соседние тесты на goconvey, новый тест пишется тоже на goconvey —
+  стили в одном пакете не смешиваются.
+tags: [testing]
+context:
+  scaffold_script: fixture.sh

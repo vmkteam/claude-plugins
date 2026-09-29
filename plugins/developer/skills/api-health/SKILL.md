@@ -15,7 +15,7 @@ API type: JSON-RPC 2.0 (zenrpc)
 RPC endpoint: определяется при онбординге (может быть /rpc/, /v1/rpc/, /v3/rpc/ и т.д.)
 ```
 
-> **ВАЖНО:**
+> Особенности:
 > - `/status` и `/healthcheck` обычно скрыты за firewall, недоступны снаружи
 > - SMD (GET на RPC endpoint) может не работать через reverse proxy (фронтенд перехватывает GET)
 > - RPC endpoint может быть версионирован: `/v1/rpc/`, `/v3/rpc/` — уточнять при онбординге

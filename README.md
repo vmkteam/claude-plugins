@@ -8,6 +8,8 @@ Marketplace плагинов [Claude Code](https://docs.anthropic.com/en/docs/cl
 |--------|----------|
 | **[developer](#developer)** | Полный SDLC-профиль для Go API-сервисов — 35 скиллов |
 
+Что изменилось между версиями — в [CHANGELOG.md](CHANGELOG.md).
+
 ---
 
 ## developer
@@ -24,7 +26,7 @@ vmkteam-developer — это не набор шпаргалок, а **форма
 
 - **Сквозной контекст.** Знает как связаны схема БД, сгенерированный код, RPC-контракт, метрики и алерты. Изменение в одном слое автоматически отражается на всех остальных.
 - **Кодогенерация вместо ручного кода.** Не пишет boilerplate — вызывает mfd-generator, colgen, rpcgen, zenrpc. Меньше ручного кода — меньше багов, меньше drift между слоями.
-- **Встроенный процесс.** `/solve` — это 11 шагов с 5 точками контроля (HITL). Нельзя закоммитить без ревью. Нельзя реализовать без утверждённого плана. Нельзя планировать без исследования.
+- **Встроенный процесс.** `/solve` — это полный цикл от preflight до обновления задачи с 5 точками контроля (HITL). Нельзя закоммитить без ревью. Нельзя реализовать без утверждённого плана. Нельзя планировать без исследования.
 - **Multi-persona review.** 6 экспертов с конкретной специализацией: архитектура (Dave Cheney), простота кода (Rob Pike), безопасность (Filippo Valsorda), тесты (Mitchell Hashimoto), операционная готовность (Peter Bourgon).
 - **Полный observability.** Один `/investigate` собирает данные из Sentry, Prometheus, Loki, Kibana, Nomad, Grafana параллельно и строит timeline инцидента.
 - **Абстрактность.** Все скиллы используют `{placeholders}`. Один `/onboard` — и плагин работает с любым проектом: от стартапа на стадии идеи до production-системы с полным мониторингом.
@@ -80,7 +82,7 @@ claude --plugin-dir ./plugins/developer
 | Скилл | Описание |
 |-------|----------|
 | `/onboard` | Интерактивный онбординг — сканирование, discovery систем, индекс знаний |
-| `/solve` | Решение задачи из YouTrack от тикета до коммита (11 шагов, 5 HITL; `--fast` → 2 HITL) |
+| `/solve` | Решение задачи из YouTrack от тикета до коммита (5 HITL; `--fast` → 2 HITL) |
 | `/decompose` | Декомпозиция User Story на подзадачи (PO/Dev/QA перспективы) |
 | `/commit-msg` | Генерация commit message из git diff |
 | `/go-review` | Multi-persona code review (6 экспертов) |
@@ -145,11 +147,13 @@ vmkteam/claude-plugins/
 │   └── developer/                # Плагин vmkteam-developer
 │       ├── .claude-plugin/
 │       │   └── plugin.json       # Метаданные плагина
-│       └── skills/
-│           ├── onboard/SKILL.md
-│           ├── solve/SKILL.md
-│           ├── go-review/SKILL.md
-│           └── .../SKILL.md      # ещё 31 скилл
+│       ├── skills/
+│       │   ├── onboard/SKILL.md
+│       │   ├── solve/            # SKILL.md + шаблоны, commit.md, publish-artifacts.sh
+│       │   ├── go-review/SKILL.md
+│       │   ├── skills-check/     # SKILL.md + probe.sh
+│       │   └── .../SKILL.md      # ещё 31 скилл
+│       └── evals/                # eval-кейсы для `claude plugin eval`
 ├── LICENSE
 └── README.md
 ```
@@ -179,7 +183,25 @@ vmkteam/claude-plugins/
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI
 - [pcurl](https://github.com/vmkteam/pcurl) для аутентифицированного доступа к API
-- Go 1.21+ и vmkteam toolchain (для скиллов кодогенерации)
+- Go 1.24+ (директива `tool` в go.mod) и vmkteam toolchain — для скиллов кодогенерации
+- jq — для публикации артефактов `/solve` и комментариев в GitLab/YouTrack
+
+## Evals
+
+В `plugins/developer/evals/` лежат кейсы для [`claude plugin eval`](https://code.claude.com/docs/en/plugin-evals): полнота, калибровка и формат `/go-review` на diff с заложенными багами, `/commit-msg`, `/testing` (тесты из сценариев Given/When/Then, стиль соседних файлов пакета), справочники `/loki`, `/pgd`, `/security`, `/gold-arch`, `/zenrpc`, выбор `/pgmdd` вместо `/pgd` и отсутствие ложных срабатываний. Прогоняйте их после правок скиллов и при смене модели:
+
+```bash
+cd plugins/developer
+claude plugin eval . --scaffold --model claude-opus-5-5 --judge-model sonnet --threshold 0.8 -j 4 \
+  --allow-tools "Bash(git *)" Write Edit
+```
+
+- `--scaffold` запускает `fixture.sh` кейсов (git-репозиторий, файлы).
+- `--judge-model sonnet` — судья для `llm`-грейдеров; маленькая модель по умолчанию путается на длинных ревью.
+- `--threshold 0.8` — кейс считается пройденным от 0.8; по умолчанию порог 1.0, и команда завершается с кодом 1 при любом неидеальном кейсе.
+- Каждый кейс идёт по 3 прогона с плагином и без, прогон набора стоит порядка десяти долларов. Для одного кейса: `--case <имя> --runs 1 --ablation none`.
+
+Кейсы не рассчитывают на git внутри прогона: на macOS системный `/usr/bin/git` в песочнице eval не запускается (обёртка `xcrun` пишет кэш во временный каталог). Diff для `/commit-msg` передаётся в промпте, а `/go-review` читает изменённые файлы напрямую.
 
 ## Browser automation
 

@@ -1,6 +1,7 @@
 ---
 name: pgd
 description: "PGD — справочник по формату и CLI pgDesigner. Используй при работе с .pgd файлами."
+paths: "**/*.pgd"
 ---
 
 # PGD — pgDesigner формат и CLI

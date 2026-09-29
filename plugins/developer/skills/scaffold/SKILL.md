@@ -1,6 +1,7 @@
 ---
 name: scaffold
 description: "Scaffold — создание нового Go-сервиса из шаблона gold-apisrv. Используй когда нужно завести новый сервис с нуля (репо, структура, Makefile, CI, конфиг, main)."
+disable-model-invocation: true
 ---
 
 # Scaffold — создание нового Go-сервиса

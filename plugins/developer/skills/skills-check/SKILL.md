@@ -1,91 +1,69 @@
 ---
 name: skills-check
 description: "Skills Check — smoke-тесты интеграций из project-index.md. Используй для проверки что pcurl-профили и URL всех data-source скиллов ещё живы."
+argument-hint: "[skill...] [--verbose]"
+disable-model-invocation: true
+context: fork
+background: false
+effort: low
+allowed-tools:
+  - "Bash(pcurl:*)"
+  - "Bash(bash ${CLAUDE_SKILL_DIR}/probe.sh:*)"
 ---
 
 # /skills-check — smoke-тесты интеграций
 
-Быстрая проверка, что внешние системы, описанные в `project-index.md` и `infra-{group}.md`, отвечают на канонические запросы data-source скиллов. Нужен когда URL/API провайдеров могли измениться, токены истечь или профили pcurl разойтись со skill-конвенциями.
+Быстрая проверка, что внешние системы из `project-index.md` (auto-memory проекта) и `~/.claude/memory/infra-{group}.md` отвечают на канонические запросы data-source скиллов. Нужна, когда URL или API провайдеров могли измениться, токены истечь или профили pcurl разойтись с конвенциями скиллов.
 
 ## Использование
 
 ```
 /skills-check                  # все настроенные интеграции
 /skills-check youtrack gitlab  # только перечисленные
-/skills-check --verbose        # печатать полный ответ, а не только HTTP-код
+/skills-check --verbose        # плюс проверка формы ответа
 ```
 
-## Что проверяется
+## Пробы
 
-Читает `{project-auto-memory}/project-index.md` и подключённый infra-файл. Для каждой секции запускает минимальный пробник:
+| Секция | Проба (GET) | Заголовок | check для `--verbose` |
+|--------|-------------|-----------|------------------------|
+| YouTrack | `https://{yt_host}/api/admin/projects?fields=id&$top=1` | `-` | `type == "array"` |
+| GitLab | `https://{gl_host}/api/v4/projects/{gl_project_id}?simple=true` | `-` | `.id != null` |
+| Sentry | `https://{sentry_host}/api/0/organizations/{org}/projects/?per_page=1` | `-` | `type == "array"` |
+| Grafana | `https://{grafana_host}/api/datasources` | `-` | `type == "array"` |
+| Prometheus (Grafana proxy) | `https://{grafana_host}/api/datasources/uid/{prom_uid}/resources/api/v1/labels` | `-` | `.status == "success"` |
+| Loki (Grafana proxy) | `https://{grafana_host}/api/datasources/uid/{loki_uid}/resources/labels` | `-` | `.status == "success"` |
+| Kibana / OpenSearch | `https://{kibana_host}/api/status` | `osd-xsrf: true` | `-` |
+| Nomad | `https://{nomad_host}/v1/status/leader` | `-` | `-` |
+| API dev/prod | `https://{api_host}/{rpc_endpoint}?smd` | `-` | `.services != null` |
 
-| Секция | Проба | OK-признак |
-|--------|-------|-----------|
-| YouTrack | `GET /api/admin/projects?fields=id&$top=1` | HTTP 200, `[]` массив |
-| GitLab | `GET /api/v4/projects/{gl_project_id}?simple=true` | HTTP 200, `.id` |
-| Sentry | `GET /api/0/organizations/{org}/projects/?per_page=1` | HTTP 200 |
-| Grafana | `GET /api/datasources` | HTTP 200, массив |
-| Prometheus (Grafana proxy) | `GET /api/datasources/uid/{uid}/resources/api/v1/labels` | HTTP 200, `.status=="success"` |
-| Loki (Grafana proxy) | `GET /api/datasources/uid/{uid}/resources/labels` | HTTP 200, `.status=="success"` |
-| Kibana/OpenSearch | `GET /api/status` с `osd-xsrf: true` | HTTP 200 |
-| Nomad | `GET /v1/status/leader` | HTTP 200 |
-| API dev/prod | `GET {rpc_endpoint}?smd` | HTTP 200, валидный JSON с `.services` |
+check нужен, потому что прокси или SSO могут вернуть HTTP 200 со страницей логина вместо JSON.
 
-Также кросс-проверяется, что все упомянутые в project-index pcurl-профили есть в `pcurl show` — несовпадение = профиль не создан локально.
+## Порядок
 
-## Порядок выполнения
-
-1. Прочитать `project-index.md` и `infra-{group}.md`
-2. Собрать список (скилл, профиль, URL, ожидаемый shape)
-3. Запустить пробники **параллельно** (через `&` + `wait` или через xargs)
-4. Собрать результаты в таблицу
-
-## Шаблон пробника
-
-```bash
-# Шаблон: silent, только HTTP-код + время
-pcurl @{profile} '{url}' -s -o /dev/null -w '%{http_code} %{time_total}\n'
-```
-
-Для verbose — без `-o /dev/null`, плюс `jq '.' | head -5` для первых строк ответа.
+1. Прочитай `project-index.md` и infra-файл. Если project-index нет — предложи пользователю запустить `/onboard` и остановись.
+2. Собери строки `name<TAB>profile<TAB>url<TAB>header<TAB>check` по таблице для настроенных секций (или только перечисленных в аргументах). Секции, которых нет в project-index, в таблицу попадут как `SKIP`.
+3. Передай строки скрипту (с `--verbose`, если он указан) — он сам проверит профили по `pcurl show`, выполнит GET параллельно (до 6 одновременно), в `--verbose` проверит форму ответа выражением check, не выводя тело (в нём может быть PII), и напечатает таблицу:
+   ```bash
+   bash ${CLAUDE_SKILL_DIR}/probe.sh [--verbose] <<'EOF'
+   youtrack	@{yt_profile}	https://{yt_host}/api/admin/projects?fields=id&$top=1	-	type == "array"
+   kibana	@{kibana_profile}	https://{kibana_host}/api/status	osd-xsrf: true	-
+   EOF
+   ```
+4. Выведи таблицу скрипта, добавь SKIP-строки и итог.
 
 ## Интерпретация
 
-- **2xx/3xx** — OK
-- **401/403** — профиль pcurl не имеет доступа или токен истёк. Пользователь обновляет профиль (`pcurl add`)
-- **404** — URL уехал: либо проект пересоздан, либо API провайдера поменял путь → обновить скилл или project-index
-- **5xx** — сервер провайдера. Повторить позже, не чинить скилл
-- **таймаут/DNS** — хост недоступен. Проверить VPN/сеть
-- **профиль не найден в `pcurl show`** — сказать пользователю: `pcurl add` для этого хоста
-
-## Формат вывода
-
-```
-Skill          Status   Code  Latency   Note
-─────────────────────────────────────────────────────
-youtrack       ✓ OK     200    120ms
-gitlab         ✓ OK     200     45ms
-sentry         ✗ FAIL   401             token истёк?
-grafana        ✓ OK     200     80ms
-prometheus     ✓ OK     200     95ms
-loki           ✗ FAIL   404             datasource uid изменился?
-api-dev        ✓ OK     200    210ms    SMD: 47 сервисов
-api-prod       - SKIP                   не настроен в project-index
-─────────────────────────────────────────────────────
-7/9 OK, 2 требуют внимания
-```
+Скрипт уже подписывает типичные причины: «неожиданный ответ» в `--verbose` — HTTP-код успешный, но ответ не того формата (страница логина прокси, другой API); 401/403 — профиль без доступа или истёкший токен (пользователь обновляет профиль сам через `pcurl add`), 404 — сменился проект, uid или путь API (обновить скилл или project-index), 5xx — проблема провайдера (повторить позже, скилл не чинить), 000 — таймаут, DNS или сеть, `NO-PROFILE` — профиля нет в `pcurl show`.
 
 ## Правила
 
-- Никаких mutating-запросов (только GET). Skill-check не должен ничего создавать/менять
-- Не логировать ответы целиком — могут содержать PII. Только status + shape-маркер
-- Параллельно, но с ограничением (одновременно не более 6 запросов)
-- Если `project-index.md` отсутствует — подсказать запустить `/onboard`
-- Вывод копируется как текст — никаких цветов/эмодзи-наворотов в CI-контексте
+- Только GET: проверка ничего не создаёт и не меняет
+- Вывод — простой текст, без цветов, чтобы его можно было скопировать в CI или тикет
 
 ## Когда запускать
 
-- После апгрейда Grafana/GitLab/YouTrack (может измениться API)
+- После апгрейда Grafana, GitLab или YouTrack (может измениться API)
 - После смены профилей pcurl или ротации токенов
-- Первый раз после `/onboard` (дымовой тест)
-- Периодически — раз в месяц или через `/loop 30d /skills-check`
+- Сразу после `/onboard`
+- Периодически, например раз в месяц

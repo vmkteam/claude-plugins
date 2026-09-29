@@ -1,6 +1,7 @@
 ---
 name: onboard
 description: "Onboard — интерактивный онбординг: discovery структуры и внешних систем, создание индекса знаний (project-index.md + infra). Используй при первой работе с новым проектом или когда project-index.md отсутствует/устарел."
+disable-model-invocation: true
 ---
 
 # Onboard — интерактивный онбординг в проект
@@ -88,7 +89,7 @@ description: "Onboard — интерактивный онбординг: discove
     - `youtrack` — коммент в задаче
     - `ask` — спрашивать каждый раз
 
-    > `docs/llm/tasks/` **никогда не коммитится** — остаётся локально. `.gitignore` должен содержать `docs/llm/`.
+    > `docs/llm/tasks/` не коммитится — остаётся локально, поэтому `.gitignore` должен содержать `docs/llm/tasks/`. Весь `docs/llm/` не игнорируй: в некоторых проектах там закоммиченная документация.
 
 ### Шаг 3b. Краткий опрос (infra-группа уже есть)
 
@@ -98,7 +99,7 @@ description: "Onboard — интерактивный онбординг: discove
 
 Если infra-файл уже существует — проверять только service-specific endpoints (API dev/prod, Sentry project, Prometheus job). Infra-level проверки (GitLab, YouTrack, Grafana) уже пройдены.
 
-Для новой infra-группы — проверить все. Все проверки ПАРАЛЛЕЛЬНО:
+Для новой infra-группы — проверить все, параллельно:
 
 ```bash
 # YouTrack — проекты и кастомные поля (state может называться иначе: Stage, Status и т.д.)
@@ -190,11 +191,10 @@ pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G --data-urlencode 
 | **Shared infra** | `~/.claude/memory/infra-{group}.md` | Глобальный (все проекты группы) | Write (абсолютный путь, mkdir -p если нет) |
 | **Project index** | `{project-auto-memory-dir}/project-index.md` | Только этот проект | Write (в auto-memory директорию проекта) |
 
-**ВАЖНО:**
-- `~/.claude/memory/` — это **глобальная** директория, НЕ auto-memory проекта. Создай её через `mkdir -p ~/.claude/memory/` если не существует.
-- `{project-auto-memory-dir}` — это auto-memory директория текущего проекта (например `~/.claude/projects/-Users-username-Projects-Go-foo/memory/`). Используй Write tool с абсолютным путём.
-- **НЕ путай** эти директории. Infra-файл должен быть доступен из ЛЮБОГО проекта группы.
-- Скиллы читают оба файла. Infra-level значения берутся из `infra-{group}.md`, service-level — из `project-index.md`. Скиллы подставляют значения вместо `{placeholders}`.
+Это разные директории, и их легко перепутать:
+- `~/.claude/memory/` — глобальная директория, общая для всех проектов группы; infra-файл должен быть доступен из любого из них. Если директории нет — `mkdir -p ~/.claude/memory/`.
+- `{project-auto-memory-dir}` — auto-memory директория текущего проекта (например `~/.claude/projects/-Users-username-Projects-Go-foo/memory/`). Пиши через Write с абсолютным путём.
+- Скиллы читают оба файла: infra-level значения — из `infra-{group}.md`, service-level — из `project-index.md`, и подставляют их вместо `{placeholders}`.
 
 #### 6a. Shared infra: `~/.claude/memory/infra-{group}.md`
 
@@ -250,6 +250,12 @@ pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G --data-urlencode 
 #### 6b. Project index: `{project-auto-memory-dir}/project-index.md`
 
 Путь: auto-memory директория текущего проекта (абсолютный). Строка `infra:` в начале файла указывает на shared infra-файл.
+
+Добавь в `MEMORY.md` той же директории строку-указатель, если её нет, — так Claude видит индекс в каждой сессии проекта и находит его для скиллов:
+
+```markdown
+- [Project index](project-index.md) — подключения к системам и специфика сервиса для скиллов vmkteam-developer
+```
 
 ```markdown
 # {Project} — индекс знаний
@@ -343,7 +349,7 @@ infra: ~/.claude/memory/infra-{group}.md
 ## Solve settings
 - base_branch: {devel} — базовая ветка, от которой ответвляются feature-ветки и против которой делается MR/review
 - artifacts_target: {gitlab/youtrack/ask} — куда публиковать артефакты /solve как коммент со спойлерами
-- Артефакты `docs/llm/tasks/` НЕ коммитятся (должны быть в `.gitignore`)
+- Артефакты `docs/llm/tasks/` не коммитятся (`docs/llm/tasks/` в `.gitignore`)
 
 ## Makefile-команды
 {список ключевых make targets с кратким описанием}
@@ -356,6 +362,9 @@ infra: ~/.claude/memory/infra-{group}.md
 ## Локальные пути
 - Исходники: {path}
 - Связанные проекты: {list}
+
+## Уроки
+{пусто при онбординге; /solve дописывает сюда по строке после задач с провальными раундами: «что пошло не так → как избежать (TASK_ID)»}
 ```
 
 ### Шаг 7. Валидация
@@ -366,6 +375,6 @@ infra: ~/.claude/memory/infra-{group}.md
 
 После онбординга:
 - `~/.claude/memory/infra-{group}.md` содержит общие подключения (GitLab, YouTrack, Sentry, Grafana, Prometheus, Loki, Kibana, Nomad)
-- `.claude/memory/project-index.md` содержит специфику сервиса и ссылку на infra-файл
+- `{project-auto-memory-dir}/project-index.md` содержит специфику сервиса и ссылку на infra-файл, а `MEMORY.md` — указатель на него
 - Скиллы читают оба файла: infra-level из `infra-{group}.md`, service-level из `project-index.md`
 - Повторный онбординг сервиса той же группы — только service-level вопросы

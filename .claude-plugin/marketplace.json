@@ -11,7 +11,7 @@
     {
       "name": "vmkteam-developer",
       "source": "./plugins/developer",
-      "description": "Full SDLC developer profile — 33 skills for Go API services: onboarding, task solving, code review, monitoring, incident investigation",
+      "description": "Full SDLC developer profile — 35 skills for Go API services: onboarding, task solving, code review, monitoring, incident investigation",
       "homepage": "https://vmkteam.dev",
       "license": "MIT",
       "keywords": ["go", "api", "sdlc", "postgresql", "zenrpc", "code-review", "monitoring"],

@@ -73,7 +73,13 @@ func newInternalError(err error) *zenrpc.Error {
 
 VT-слой: хелпер `httpAsRPCError(code int) *zenrpc.Error` → `ErrUnauthorized/Forbidden/NotFound/Internal`.
 
+«Не найдено» — не ошибка репозитория: сгенерированный `EntityByID` возвращает `(nil, nil)` на `pg.ErrNoRows`. Метод сервиса обязан проверить `nil` и вернуть `ErrNotFound`, иначе конвертер `NewEntity(nil)` упадёт с nil pointer dereference.
+
+`newInternalError(err)` безопасен для клиента только при `zm.WithErrorSLog` в цепочке middleware: он отправляет причину в Sentry и заменяет message на «Internal error» (подробнее — /security).
+
 ## Server (канонический шаблон)
+
+В существующем сервисе сервер и middleware уже настроены в `server.go` — новый сервис регистрируется в `RegisterAll`, второй сервер не заводится.
 
 ```go
 //go:generate go tool zenrpc

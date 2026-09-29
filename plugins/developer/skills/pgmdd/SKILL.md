@@ -1,6 +1,7 @@
 ---
 name: pgmdd
 description: "PDD — справочник по формату MicroOLAP Database Designer. Используй при редактировании PDD-файлов."
+paths: "**/*.pdd"
 ---
 
 # PDD — MicroOLAP Database Designer формат
@@ -12,7 +13,7 @@ description: "PDD — справочник по формату MicroOLAP Databas
 ## Non-obvious правила
 
 - **Числовые ID уникальны в пределах файла** — при добавлении объекта сначала найди max(ID)
-- **После ручной правки — ВСЕГДА открой и пересохрани в MDD GUI**, иначе Generate Script сломается
+- **После ручной правки файл нужно открыть и пересохранить в MDD GUI**, иначе Generate Script сломается — напомни об этом пользователю
 - **COMPOSITE на каждую таблицу** — запись-тип с `MasterTableOID` = ID ENTITY; без неё таблица не видна в GUI
 - **INDEXCOLUMNS — имена, не ID** колонок (через `COMMATEXT`)
 - **`"` в Predicate экранируется как `\A`**, `'` — как `\a`

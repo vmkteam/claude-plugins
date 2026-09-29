@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: pgmdd-not-pgd
+description: >
+  Trigger: в проекте схема .pdd (MicroOLAP) — срабатывает /pgmdd (paths **/*.pdd), а не /pgd;
+  колонка добавляется по правилам формата, пользователю напоминают пересохранить файл в MDD GUI.
+tags: [trigger, reference]
+context:
+  scaffold_script: fixture.sh
