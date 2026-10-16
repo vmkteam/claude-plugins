@@ -18,12 +18,10 @@
 - **/testing.** Тест create проверяет поля, которые заполняет база; e2e «свой клиент ↔ свой сервер» через `httptest.NewServer` на тестовой БД.
 - **/solve.** `/gold-arch` и `/cron` подключаются по контексту; расхождение спеки со скиллом называется в spec; SIMPLIFY не переносит код между слоями вопреки `/gold-arch`.
 
-### Известные баги генераторов
+### Поведение генераторов
 
-Описаны в скиллах с обходом до исправления upstream (mfd-generator [#71](https://github.com/vmkteam/mfd-generator/issues/71), [#72](https://github.com/vmkteam/mfd-generator/issues/72), [#73](https://github.com/vmkteam/mfd-generator/issues/73), rpcgen [#42](https://github.com/vmkteam/rpcgen/issues/42)):
-
-- /mfd, mfd-generator ≤ v0.6.2: `Add<Entity>` не возвращает DEFAULT-колонки (`createdAt`), а с ops пишет в базу `0001-01-01` — обход `WithDefaults`; `ARRAY`-фильтр с пустым срезом не ставится — выборка или `UpdateBy` по всей таблице.
-- /rpcgen ≤ v2.5.7: Go-клиент заменяет ошибку сервера sentinel'ом и теряет `message` и `data`.
+- /mfd: `Add<Entity>` не возвращает DEFAULT-колонки (`createdAt`), а с ops пишет в базу `0001-01-01` — обход `WithDefaults`; `ARRAY`-фильтр с пустым срезом не ставится — выборка или `UpdateBy` по всей таблице. Это известное поведение генератора, в скилле — с обходами. Формат флага `-n` у `mfd-generator xml` — `ns:t1,t2` (README пишет `=`, [vmkteam/mfd-generator#73](https://github.com/vmkteam/mfd-generator/issues/73)).
+- /rpcgen ≤ v2.5.7: Go-клиент заменяет ошибку сервера sentinel'ом и теряет `message` и `data` ([vmkteam/rpcgen#42](https://github.com/vmkteam/rpcgen/issues/42)) — обход через `http.RoundTripper`.
 
 ### Новое
 
