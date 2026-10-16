@@ -21,6 +21,7 @@
 ### Поведение генераторов
 
 - /mfd: `Add<Entity>` не возвращает DEFAULT-колонки (`createdAt`), а с ops пишет в базу `0001-01-01` — обход `WithDefaults`; `ARRAY`-фильтр с пустым срезом не ставится — выборка или `UpdateBy` по всей таблице. Это известное поведение генератора, в скилле — с обходами. Формат флага `-n` у `mfd-generator xml` — `ns:t1,t2` (README пишет `=`, [vmkteam/mfd-generator#73](https://github.com/vmkteam/mfd-generator/issues/73)).
+- /zenrpc: описания из doc-комментариев попадают в SMD raw-строкой `` `…` `` — обратная кавычка в документации метода, аргумента или поля модели ломает компиляцию `*_zenrpc.go`; текст ошибки `//zenrpc:<код>` — в `"…"`, без `"` и `\`.
 - /rpcgen ≤ v2.5.7: Go-клиент заменяет ошибку сервера sentinel'ом и теряет `message` и `data` ([vmkteam/rpcgen#42](https://github.com/vmkteam/rpcgen/issues/42)) — обход через `http.RoundTripper`.
 
 ### Новое
