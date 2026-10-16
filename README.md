@@ -94,7 +94,7 @@ claude --plugin-dir ./plugins/developer
 
 | Скилл | Описание |
 |-------|----------|
-| `/gold-arch` | Архитектура Go-сервисов (3 слоя: db → domain → rpc) |
+| `/gold-arch` | Архитектура Go-сервисов: слои db → domain → API, модели домена, транзакции, раскладка пакетов |
 | `/zenrpc` | JSON-RPC 2.0 сервер — сервисы, middleware, аннотации |
 | `/mfd` | MFD-генератор — Go-код из PostgreSQL-схем |
 | `/colgen` | Генератор коллекций и конвертеров между слоями |
@@ -188,7 +188,7 @@ vmkteam/claude-plugins/
 
 ## Evals
 
-В `plugins/developer/evals/` лежат кейсы для [`claude plugin eval`](https://code.claude.com/docs/en/plugin-evals): полнота, калибровка и формат `/go-review` на diff с заложенными багами, `/commit-msg`, `/testing` (тесты из сценариев Given/When/Then, стиль соседних файлов пакета), справочники `/loki`, `/pgd`, `/security`, `/gold-arch`, `/zenrpc`, выбор `/pgmdd` вместо `/pgd` и отсутствие ложных срабатываний. Прогоняйте их после правок скиллов и при смене модели:
+В `plugins/developer/evals/` лежат кейсы для [`claude plugin eval`](https://code.claude.com/docs/en/plugin-evals): полнота, калибровка и формат `/go-review` на diff с заложенными багами, `/commit-msg`, `/testing` (тесты из сценариев Given/When/Then, стиль соседних файлов пакета), справочники `/loki`, `/pgd`, `/security`, `/gold-arch`, `/zenrpc`, `/mfd`, срабатывание `/cron`, `/colgen` и `/gold-arch` по словам задачи («воркер», ручные циклы, MCP), выбор `/pgmdd` вместо `/pgd` и отсутствие ложных срабатываний. Прогоняйте их после правок скиллов и при смене модели:
 
 ```bash
 cd plugins/developer

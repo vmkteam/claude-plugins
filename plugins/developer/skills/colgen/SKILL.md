@@ -1,6 +1,6 @@
 ---
 name: colgen
-description: "Colgen — генератор коллекций для Go-структур. Используй при работе с collection.go и конвертерами между слоями."
+description: "Colgen — коллекции и конвертеры Go-структур. Используй, когда пишешь цикл, который собирает id, строит map по полю, группирует, заполняет связи или конвертирует список между слоями (включая лямбды в `Map`/`mcp.Map`); при новом DTO или модели домена; при правке collection.go."
 ---
 
 # Colgen
@@ -57,7 +57,12 @@ Docs: https://vmkteam.dev/colgen/
 - `map`/`mapp` (lowercase) — приватные конструкторы
 - Разное имя в `db`-слое: `Map(db.News)` (полный путь)
 - Структура не в базовой директиве → конструктор вернёт `[]News` вместо `NewsList`
-- Другой пакет для `Map/MapP`: `-funcpkg=<pkg>` + имя пакета в `-imports` через запятую
+- Другой пакет для `Map/MapP`: `-funcpkg=<pkg>` + имя пакета в `-imports` через запятую. Дженерики `Map`/`MapP` живут в пакете домена, API-пакеты берут их оттуда, а не заводят свои:
+  ```go
+  // pkg/rpc/collection.go (vmkteam-reviewer)
+  //go:generate colgen -funcpkg=reviewer -imports=reviewsrv/pkg/reviewer
+  //colgen:Review:mapp(reviewer)
+  ```
 
 ### Порядок первой генерации (gotcha)
 
@@ -84,8 +89,13 @@ Docs: https://vmkteam.dev/colgen/
 | `map[id]entity` из списка | `Index()` / `IndexBy<Field>()` |
 | `[]int` id из поля элементов списка | `<Field>s()` / `IDs()` |
 | `map[key][]entity` | `Group<Field>()` |
+| `mcp.Map(list, func(x dom.X) Y {…})` | именованный `newY(dom.X) Y` + `//colgen:Y:map(dom.X)` с `-funcpkg=mcp` |
+| второй `Map`/`MapP` в пакете API | `-funcpkg=<domain>` |
+| цикл по `[]db.X` в домене | из репозитория — сразу `NewXs` (`MapP(db)`), коллекция и её методы — в `collection.go` домена |
 
 Нужного метода нет — добавь директиву в `collection.go` и `make generate`.
+
+Коллекции — на моделях домена и API. В `pkg/db` colgen не кладём, если есть domain-слой: db тонкий (/gold-arch).
 
 ## Inline-сниппеты
 

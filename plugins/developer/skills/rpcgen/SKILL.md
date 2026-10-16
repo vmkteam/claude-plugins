@@ -53,6 +53,13 @@ type-script-client: generate
 - **TS:** после генерации добавить `// @ts-nocheck` на 3-ю строку (после `/* eslint-disable */`), иначе frontend не собирается
 - Go-клиенты импортируются как `project/pkg/client/<service>`, инициализация `svc.New("http://host/rpc/")`
 - `rpcdiff old.json new.json` — сравнение OpenRPC schema, полезно перед деплоем
+- Клиент сервиса из того же модуля (CLI, SDK) — тоже `pkg/client/<service>/`, не рядом с потребителем
+
+## Известные баги (rpcgen ≤ v2.5.7)
+
+Убрать раздел, когда исправят upstream: [#42](https://github.com/vmkteam/rpcgen/issues/42).
+
+- **Go-клиент теряет ошибку сервера.** Для кодов, описанных в `//zenrpc:<код>`, сгенерированный метод заменяет `*zenrpc.Error` пакетной переменной `ErrSvcMethodNNN` с текстом из комментария: `message` и `data` ответа теряются, `errors.As` их не достанет. Сравнение `errors.Is(err, client.ErrSvcMethodNNN)` работает. Нужна подсказка из `data` (причина, hint) — `http.RoundTripper` клиента читает тело ответа с ошибкой, сохраняет `error.data` и возвращает тело дальше (образец — hubsrv `pkg/cli/client.go`).
 
 ## Маркер
 
