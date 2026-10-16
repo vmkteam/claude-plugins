@@ -56,6 +56,8 @@ func (s ReviewService) GetByID(ctx context.Context, reviewId int) (*Review, erro
 - `//zenrpc:<httpCode> Description` — код ошибки
 - `//zenrpc:return Description` — описание возврата
 
+**Без обратных кавычек в документации.** Doc-комментарии метода, описания `//zenrpc:<param>` и `//zenrpc:return`, комментарии полей RPC-моделей zenrpc переносит в SMD как raw-строку `` `…` ``: обратная кавычка в тексте (`` `id` ``, markdown-код) обрывает строку, и `*_zenrpc.go` не компилируется. Имена в документации — без оформления или в одинарных кавычках. Текст ошибки `//zenrpc:<код>` попадает в строку `"…"` — без `"` и `\`.
+
 ## Ошибки
 
 RPC-слой использует `zenrpc.NewStringError`, для wrap — `zenrpc.NewError`:

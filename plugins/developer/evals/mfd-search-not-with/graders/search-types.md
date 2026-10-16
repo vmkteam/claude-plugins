@@ -1,0 +1,4 @@
+---
+type: regex
+pattern: 'SEARCHTYPE_ARRAY[\s\S]*SEARCHTYPE_NULL|SEARCHTYPE_NULL[\s\S]*SEARCHTYPE_ARRAY'
+---

@@ -1,6 +1,6 @@
 ---
 name: cron
-description: "Cron — менеджер cron-задач с UI, middleware и Prometheus-метриками. Используй при добавлении/правке cron-задачи, подключении пакета vmkteam/cron или настройке CronConfig."
+description: "Cron — менеджер cron-задач с UI, middleware и Prometheus-метриками. Используй при добавлении/правке cron-задачи, фонового воркера, периодической проверки или правил по расписанию, при пакете `<domain>/cron`, подключении vmkteam/cron или настройке CronConfig."
 ---
 
 # Cron
@@ -8,6 +8,8 @@ description: "Cron — менеджер cron-задач с UI, middleware и Pro
 - Upstream: https://github.com/vmkteam/cron
 - Обёртка над robfig/cron: context-aware jobs, web UI, ручной запуск, middleware, метрики
 - Сигнатура задачи: `func(ctx context.Context) error`
+
+**Воркеры не живут в пакете домена.** Расписание — `pkg/app/cron.go` (`newCron()`, `CronConfig`), задача — метод менеджера домена `func(ctx) error`. Пакет `<domain>/cron` и свой генерик `Job` поверх `vmkteam/cron` не нужны: менеджер уже даёт DI, middleware — метрики, логи и Sentry.
 
 ## Базовый шаблон
 
