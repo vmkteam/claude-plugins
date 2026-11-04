@@ -6,7 +6,7 @@ Marketplace плагинов [Claude Code](https://docs.anthropic.com/en/docs/cl
 
 | Плагин | Описание |
 |--------|----------|
-| **[developer](#developer)** | Полный SDLC-профиль для Go API-сервисов — 35 скиллов |
+| **[developer](#developer)** | Полный SDLC-профиль для Go API-сервисов — 36 скиллов |
 
 Что изменилось между версиями — в [CHANGELOG.md](CHANGELOG.md).
 
@@ -75,7 +75,7 @@ claude --plugin-dir ./plugins/developer
 /investigate API тормозит последние 30 минут
 ```
 
-## Скиллы (35)
+## Скиллы (36)
 
 ### Workflow
 
@@ -126,6 +126,7 @@ claude --plugin-dir ./plugins/developer
 | `/loki` | LogQL-запросы для структурированных JSON-логов |
 | `/kibana` | Kibana/OpenSearch Dashboards — поиск по логам |
 | `/nomad` | Оркестрация — jobs, allocations, метрики |
+| `/topsrv` | Серверы проекта в topsrv.io — метрики хостов, PostgreSQL, nginx, алерты, CVE, bot/web-логи |
 | `/api-health` | Health checks JSON-RPC, SMD discovery, тайминги |
 
 ### Оркестраторы
@@ -152,7 +153,7 @@ vmkteam/claude-plugins/
 │       │   ├── solve/            # SKILL.md + шаблоны, commit.md, publish-artifacts.sh
 │       │   ├── go-review/SKILL.md
 │       │   ├── skills-check/     # SKILL.md + probe.sh
-│       │   └── .../SKILL.md      # ещё 31 скилл
+│       │   └── .../SKILL.md      # ещё 32 скилла
 │       └── evals/                # eval-кейсы для `claude plugin eval`
 ├── LICENSE
 └── README.md
@@ -162,7 +163,7 @@ vmkteam/claude-plugins/
 
 `/onboard` создаёт два файла:
 
-- **`~/.claude/memory/infra-{group}.md`** — общая инфраструктура группы (GitLab, YouTrack, Sentry, Grafana, Prometheus, Loki, Kibana, Nomad). Один файл на группу, переиспользуется всеми проектами.
+- **`~/.claude/memory/infra-{group}.md`** — общая инфраструктура группы (GitLab, YouTrack, Sentry, Grafana, Prometheus, Loki, Kibana, Nomad, topsrv). Один файл на группу, переиспользуется всеми проектами.
 - **`{project-auto-memory}/project-index.md`** — специфика сервиса (endpoints, jobs, slugs, MFD namespaces, связанные сервисы).
 
 Остальные скиллы читают оба файла и подставляют `{placeholders}` конкретными значениями.
@@ -173,7 +174,7 @@ vmkteam/claude-plugins/
 |--------|----------|-------------------|
 | **Идея** | Только код, нет деплоя | YouTrack, Git |
 | **Dev** | Задеплоен на dev/staging | + Sentry, API dev, возможно Grafana |
-| **Production** | Задеплоен на prod | + Sentry, Grafana, Prometheus, Loki, Nomad, Kibana |
+| **Production** | Задеплоен на prod | + Sentry, Grafana, Prometheus, Loki, Nomad, Kibana, topsrv |
 
 ### Внешние инструменты
 
@@ -188,7 +189,7 @@ vmkteam/claude-plugins/
 
 ## Evals
 
-В `plugins/developer/evals/` лежат кейсы для [`claude plugin eval`](https://code.claude.com/docs/en/plugin-evals): полнота, калибровка и формат `/go-review` на diff с заложенными багами, `/commit-msg`, `/testing` (тесты из сценариев Given/When/Then, стиль соседних файлов пакета), справочники `/loki`, `/pgd`, `/security`, `/gold-arch`, `/zenrpc`, `/mfd`, срабатывание `/cron`, `/colgen` и `/gold-arch` по словам задачи («воркер», ручные циклы, MCP), выбор `/pgmdd` вместо `/pgd` и отсутствие ложных срабатываний. Прогоняйте их после правок скиллов и при смене модели:
+В `plugins/developer/evals/` лежат кейсы для [`claude plugin eval`](https://code.claude.com/docs/en/plugin-evals): полнота, калибровка и формат `/go-review` на diff с заложенными багами, `/commit-msg`, `/testing` (тесты из сценариев Given/When/Then, стиль соседних файлов пакета), справочники `/loki`, `/topsrv`, `/pgd`, `/security`, `/gold-arch`, `/zenrpc`, `/mfd`, срабатывание `/cron`, `/colgen` и `/gold-arch` по словам задачи («воркер», ручные циклы, MCP), выбор `/pgmdd` вместо `/pgd` и отсутствие ложных срабатываний. Прогоняйте их после правок скиллов и при смене модели:
 
 ```bash
 cd plugins/developer

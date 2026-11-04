@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.1 — 2026-11-04
+
+### Изменения поведения
+
+- **/pgd сверен с pgdesigner 0.0.6** (`docs/pgd-format/spec.md`, XSD, `-h` команд), сниппеты прогнаны через XSD, `lint`, `generate` и PG18, `diff` — накатом на базу и сравнением `pg_dump -s` с `generate`. Исправлено: выражение generated-колонки — атрибутом `<generated expression="…">` (CDATA, который советовал скилл, даёт `GENERATED ALWAYS AS ()`; 0.0.6 ловит это как E033); порядок в `<index>` — ключи → `<include>` → `<with>` → `<where>` (сниппет с `<where>` перед `<include>` XSD 0.0.6 не принимает); FK без `on-delete`/`on-update` получает `NO ACTION`, а не `restrict`, как писал скилл вслед за XSD, — действия указываются явно; `lint` — 69 правил; `<rules>` в канонической иерархии — после `<triggers>`; убрано непроверяемое «редактор восстанавливает порядок `<label>`». Добавлено: список элементов с сырым SQL, `comment`, `no action` с пробелом, opclass у `<column>` и `<expression>` индекса, ключи-выражения вперемешку с колонками, VIRTUAL generated, тип из не-public схемы со схемой (W024), `UNLOGGED`/`TABLESPACE`/`USING` и `toast.*`, `kind` у `<function>`, `merge`, `convert -full`/`-schema`.
+
+### Поведение генераторов
+
+- /pgd, pgdesigner 0.0.6 — ловушки 0.0.5 (`diff` без FK и комментариев новых таблиц, без смены generated и выражений индексов, enum без позиции; потеря opclass у выражений; `convert` из SQL без GENERATED; флаги после файлов; путь из 12 символов) исправлены в 0.0.6 и из скилла убраны. Новые: предупреждения `diff` — `ENUM_ADD_VALUE` (значение нельзя использовать до коммита, `ADD VALUE` — в отдельную миграцию), `COLUMN_RECREATE`, `TYPE_RECREATE` (перестановка и удаление значения enum — SQL не выдаётся); сверка с живой базой — `convert` без `-full` не читает типы, и `diff` предлагает `DROP TYPE`; граница партиции без смещения даёт ложный `REATTACH_PARTITION`.
+
+### Новое
+
+- **/topsrv** — серверы проекта через публичный JSON-RPC API app.topsrv.io (`/api/v1/rpc/`, токен проекта в pcurl-профиле `@topsrv-{slug}`): хосты и сводка, PromQL по метрикам агента (`topsrv_*`: система, диски, сеть, процессы, PostgreSQL, nginx, angie, S.M.A.R.T., SSL), алерты и silence, инвентарь пакетов и CVE, bot- и web-логи (кто нагружает сайт, цена блокировки, как читать 502/504 и 499 на стриминге, первый срез при окне короче 72 часов). Методы со scopes, проверенные на живом проекте рецепты, коды ошибок. Ловушки: хост в PromQL — лейбл `instance`, а не `hostname`; `topsrv_disk_used_percent` из примера в контракте у агента нет; без `id` запрос — notification с пустым 200; pcurl не передаёт stdin, поэтому `-d @-` даёт `Parse error` — тело собирается в `-d "$(jq -nc …)"`; окно weblog — не больше 72 часов.
+- /onboard спрашивает профиль topsrv (Production), проверяет его через `meta.whoami` и пишет секцию topsrv в `infra-{group}.md`.
+- Eval `pgd-generated-column` — generated-колонка с GIN-индексом без CDATA.
+- Eval `topsrv-disk-instance-label` — команды pcurl к topsrv: лейбл `instance`, `topsrv_filesystem_bytes`, `metric.queryRange`.
+
 ## 1.3.0 — 2026-10-16
 
 Опыт перестройки hubsrv: код пришлось переложить по слоям, потому что `/gold-arch`, `/colgen` и `/cron` не загружались — их описания не совпадали со словами задачи («воркер», «MCP», «цикл»), а спека и соседние сервисы диктовали устаревшую структуру.

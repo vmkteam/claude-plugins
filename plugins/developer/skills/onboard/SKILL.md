@@ -48,7 +48,7 @@ disable-model-invocation: true
 |--------|----------|-------------------|
 | **Идея** | Только код, нет деплоя | YouTrack, Git |
 | **Dev** | Задеплоен на dev/staging | + Sentry (dev), API dev, возможно Grafana |
-| **Production** | Задеплоен на prod | + Sentry (prod), API prod, Grafana, Prometheus, Loki, Nomad |
+| **Production** | Задеплоен на prod | + Sentry (prod), API prod, Grafana, Prometheus, Loki, Nomad, topsrv |
 
 Стадия определяет какие системы спрашивать — не задавай вопросы про Grafana/Prometheus если проект на стадии "Идея".
 
@@ -71,20 +71,21 @@ disable-model-invocation: true
 6. **Loki** (Production): через Grafana? loki datasource UID?
 7. **Kibana** (Production): pcurl-профиль? Тип (opensearch/kibana)?
 8. **Nomad** (Production): pcurl-профиль?
-9. **Ветвление**: общая модель (devel→staging, master→production)?
+9. **topsrv** (Production): проект в app.topsrv.io и pcurl-профиль (`@topsrv-{slug}`, второй токен — `@topsrv-{slug}-2`; искать в `pcurl show`)?
+10. **Ветвление**: общая модель (devel→staging, master→production)?
 
 #### Service-level (специфика этого сервиса):
-10. **YouTrack проект**: shortName, project_id, state_field и значения?
-11. **GitLab project**: Project ID, path?
-12. **Sentry project**: slug?
-13. **Prometheus job**: имя job для этого сервиса?
-14. **Loki service_name**: имя в Loki?
-15. **Grafana dashboard**: UID дашборда?
-16. **API endpoints**: URL dev/prod, pcurl-профили, rpc_endpoint?
-17. **Nomad job**: имя job?
-18. **Специфика**: особые правила, code style?
-19. **Базовая ветка** (`base_branch`): от какой ветки ответвляются feature-ветки и куда идут MR? (по умолчанию `devel`; иногда `master`, `main`)
-20. **Артефакты /solve** (`artifacts_target`): куда публиковать артефакты как коммент со спойлерами? Варианты:
+11. **YouTrack проект**: shortName, project_id, state_field и значения?
+12. **GitLab project**: Project ID, path?
+13. **Sentry project**: slug?
+14. **Prometheus job**: имя job для этого сервиса?
+15. **Loki service_name**: имя в Loki?
+16. **Grafana dashboard**: UID дашборда?
+17. **API endpoints**: URL dev/prod, pcurl-профили, rpc_endpoint?
+18. **Nomad job**: имя job?
+19. **Специфика**: особые правила, code style?
+20. **Базовая ветка** (`base_branch`): от какой ветки ответвляются feature-ветки и куда идут MR? (по умолчанию `devel`; иногда `master`, `main`)
+21. **Артефакты /solve** (`artifacts_target`): куда публиковать артефакты как коммент со спойлерами? Варианты:
     - `gitlab` — коммент в MR (по умолчанию)
     - `youtrack` — коммент в задаче
     - `ask` — спрашивать каждый раз
@@ -93,7 +94,7 @@ disable-model-invocation: true
 
 ### Шаг 3b. Краткий опрос (infra-группа уже есть)
 
-Спрашивать только service-level (пп. 10-20 из шага 3a). Infra-level берётся из `~/.claude/memory/infra-{group}.md`.
+Спрашивать только service-level (пп. 11-21 из шага 3a). Infra-level берётся из `~/.claude/memory/infra-{group}.md`.
 
 ### Шаг 4. Проверка подключений
 
@@ -119,6 +120,9 @@ pcurl @{prom_profile} 'https://{prom_host}/api/v1/query?query=up' -s -o /dev/nul
 
 # Loki (через Grafana)
 pcurl @{grafana_profile} 'https://{grafana_host}/api/datasources/uid/{loki_uid}/resources/labels' -s -o /dev/null -w '%{http_code}'
+
+# topsrv — 200 и в теле project, scopes, expiresAt; 401 — токен истёк или отозван
+pcurl @{topsrv_profile} -sS https://app.topsrv.io/api/v1/rpc/ -d '{"jsonrpc":"2.0","id":1,"method":"meta.whoami"}' -w ' %{http_code}'
 
 # API prod (/status скрыт за firewall — проверяем RPC endpoint)
 pcurl @{api_prod_profile} 'https://{api_prod_host}/{rpc_endpoint}?smd' -s -o /dev/null -w '%{http_code}'
@@ -241,6 +245,11 @@ pcurl @{prom_profile} 'https://{prom_host}/api/v1/query' -s -G --data-urlencode 
 ## Nomad (если есть)
 - profile: @{nomad_profile}
 - host: {nomad_host}
+
+## topsrv (если есть)
+- profile: @{topsrv_profile}
+- project: {topsrv_slug}
+- scopes: {scopes из meta.whoami}
 
 ## Ветвление
 - devel → staging (auto deploy)
@@ -374,7 +383,7 @@ infra: ~/.claude/memory/infra-{group}.md
 ## Результат
 
 После онбординга:
-- `~/.claude/memory/infra-{group}.md` содержит общие подключения (GitLab, YouTrack, Sentry, Grafana, Prometheus, Loki, Kibana, Nomad)
+- `~/.claude/memory/infra-{group}.md` содержит общие подключения (GitLab, YouTrack, Sentry, Grafana, Prometheus, Loki, Kibana, Nomad, topsrv)
 - `{project-auto-memory-dir}/project-index.md` содержит специфику сервиса и ссылку на infra-файл, а `MEMORY.md` — указатель на него
 - Скиллы читают оба файла: infra-level из `infra-{group}.md`, service-level из `project-index.md`
 - Повторный онбординг сервиса той же группы — только service-level вопросы
