@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: pgd-generated-column
+description: >
+  Справочный скилл /pgd: выражение generated-колонки — в атрибуте expression,
+  не в CDATA (CDATA pgdesigner 0.0.5 превращает в пустое AS ()).
+tags: [reference]
+context:
+  scaffold_script: fixture.sh
